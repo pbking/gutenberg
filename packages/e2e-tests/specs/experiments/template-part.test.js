@@ -39,7 +39,9 @@ describe( 'Template Part', () => {
 					page: 'gutenberg-edit-site',
 				} ).slice( 1 )
 			);
-			await page.waitForSelector( '.edit-site-visual-editor' );
+			await page.waitForSelector(
+				'.edit-site-visual-editor[data-loaded="true"]'
+			);
 		} );
 
 		async function updateHeader( content ) {
@@ -49,8 +51,16 @@ describe( 'Template Part', () => {
 			await navigationPanel.navigate( 'Template Parts' );
 			await navigationPanel.clickItemByText( 'header' );
 
+			await page.waitForSelector(
+				'.edit-site-visual-editor[data-loaded="true"]'
+			);
+
+			const frame = await page
+				.frames()
+				.find( ( f ) => f.name() === 'editor-canvas' );
+
 			// Edit it.
-			await insertBlock( 'Paragraph' );
+			await insertBlock( 'Paragraph', frame );
 			await page.keyboard.type( content );
 
 			// Save it.

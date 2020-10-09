@@ -210,12 +210,16 @@ describe( 'Multi-entity save flow', () => {
 			await navigationPanel.clickItemByText( 'Front Page' );
 			await navigationPanel.close();
 
+			const frame = await page
+				.frames()
+				.find( ( f ) => f.name() === 'editor-canvas' );
+
 			// Click the first block so that the template part inserts in the right place.
-			const firstBlock = await page.$( '.wp-block' );
+			const firstBlock = await frame.$( '.wp-block' );
 			await firstBlock.click();
 
 			// Insert something to dirty the editor.
-			await insertBlock( 'Paragraph' );
+			await insertBlock( 'Paragraph', frame );
 
 			const enabledButton = await page.waitForSelector(
 				activeSaveSiteSelector
