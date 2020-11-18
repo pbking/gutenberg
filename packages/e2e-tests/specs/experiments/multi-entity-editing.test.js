@@ -8,6 +8,7 @@ import {
 	publishPost,
 	trashAllPosts,
 	activateTheme,
+	canvas,
 } from '@wordpress/e2e-test-utils';
 import { addQueryArgs } from '@wordpress/url';
 
@@ -37,11 +38,11 @@ const createTemplatePart = async (
 ) => {
 	// Create new template part.
 	await insertBlock( 'Template Part' );
-	const [ createNewButton ] = await page.$x(
+	const [ createNewButton ] = await canvas().$x(
 		'//button[contains(text(), "New template part")]'
 	);
 	await createNewButton.click();
-	await page.waitForSelector(
+	await canvas().waitForSelector(
 		isNested
 			? '.wp-block-template-part .wp-block-template-part .block-editor-block-list__layout'
 			: '.wp-block-template-part .block-editor-block-list__layout'
@@ -51,7 +52,7 @@ const createTemplatePart = async (
 };
 
 const editTemplatePart = async ( textToAdd, isNested = false ) => {
-	await page.click(
+	await canvas().click(
 		`${
 			isNested
 				? '.wp-block-template-part .wp-block-template-part'
@@ -228,7 +229,7 @@ describe( 'Multi-entity editor states', () => {
 		} );
 
 		it( 'should only dirty the child when editing the child', async () => {
-			await page.click(
+			await canvas().click(
 				'.wp-block-template-part .wp-block[data-type="core/paragraph"]'
 			);
 			await page.keyboard.type( 'Some more test words!' );
@@ -239,7 +240,7 @@ describe( 'Multi-entity editor states', () => {
 		} );
 
 		it( 'should only dirty the nested entity when editing the nested entity', async () => {
-			await page.click(
+			await canvas().click(
 				'.wp-block-template-part .wp-block-template-part .wp-block[data-type="core/paragraph"]'
 			);
 			await page.keyboard.type( 'Nested test words!' );

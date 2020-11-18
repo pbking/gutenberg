@@ -16,9 +16,11 @@ import {
 	__experimentalBlockSettingsMenuFirstItem,
 	__experimentalUseResizeCanvas as useResizeCanvas,
 	__unstableUseCanvasClickRedirect as useCanvasClickRedirect,
+	__unstableUseEditorStyles as useEditorStyles,
+	Iframe,
 } from '@wordpress/block-editor';
-import { Popover } from '@wordpress/components';
-import { useRef } from '@wordpress/element';
+import { Popover, DropZoneProvider } from '@wordpress/components';
+import { useEffect, useRef } from '@wordpress/element';
 
 /**
  * Internal dependencies
@@ -26,22 +28,8 @@ import { useRef } from '@wordpress/element';
 import BlockInspectorButton from './block-inspector-button';
 import { useSelect } from '@wordpress/data';
 
-export default function VisualEditor() {
+function Canvas( { settings } ) {
 	const ref = useRef();
-	const deviceType = useSelect( ( select ) => {
-		return select( 'core/edit-post' ).__experimentalGetPreviewDeviceType();
-	}, [] );
-	const hasMetaBoxes = useSelect(
-		( select ) => select( 'core/edit-post' ).hasMetaBoxes(),
-		[]
-	);
-	const desktopCanvasStyles = {
-		height: '100%',
-		// Add a constant padding for the typewritter effect. When typing at the
-		// bottom, there needs to be room to scroll up.
-		paddingBottom: hasMetaBoxes ? null : '40vh',
-	};
-	const resizedCanvasStyles = useResizeCanvas( deviceType );
 
 	useScrollMultiSelectionIntoView( ref );
 	useBlockSelectionClearer( ref );
@@ -49,24 +37,64 @@ export default function VisualEditor() {
 	useClipboardHandler( ref );
 	useTypingObserver( ref );
 	useCanvasClickRedirect( ref );
+	useEditorStyles( ref, settings.styles );
+
+	function setBodyRef( newRef ) {
+		if ( newRef ) {
+			ref.current = newRef.ownerDocument.body;
+		} else {
+			ref.current = null;
+		}
+	}
+
+	const hasMetaBoxes = useSelect(
+		( select ) => select( 'core/edit-post' ).hasMetaBoxes(),
+		[]
+	);
+
+	// Add a constant padding for the typewritter effect. When typing at the
+	// bottom, there needs to be room to scroll up.
+	useEffect( () => {
+		if ( hasMetaBoxes ) {
+			ref.current.style.paddingBottom = '';
+			return;
+		}
+
+		ref.current.style.paddingBottom = '40vh';
+	}, [ hasMetaBoxes ] );
 
 	return (
-		<div className="edit-post-visual-editor">
+		<DropZoneProvider>
+			<WritingFlow>
+				<div
+					ref={ setBodyRef }
+					className="edit-post-visual-editor__post-title-wrapper"
+				>
+					<PostTitle />
+				</div>
+				<BlockList />
+			</WritingFlow>
+		</DropZoneProvider>
+	);
+}
+
+export default function VisualEditor( { settings } ) {
+	const deviceType = useSelect( ( select ) => {
+		return select( 'core/edit-post' ).__experimentalGetPreviewDeviceType();
+	}, [] );
+	const desktopCanvasStyles = { height: '100%' };
+	const resizedCanvasStyles = useResizeCanvas( deviceType );
+
+	return (
+		<div className="edit-post-visual-editor" style={ { height: '100%' } }>
 			<VisualEditorGlobalKeyboardShortcuts />
 			<Popover.Slot name="block-toolbar" />
-			<div
-				ref={ ref }
-				className="editor-styles-wrapper"
-				tabIndex="-1"
+			<Iframe
 				style={ resizedCanvasStyles || desktopCanvasStyles }
+				head={ window.__editorStyles.html }
 			>
-				<WritingFlow>
-					<div className="edit-post-visual-editor__post-title-wrapper">
-						<PostTitle />
-					</div>
-					<BlockList />
-				</WritingFlow>
-			</div>
+				<Canvas settings={ settings } />
+			</Iframe>
 			<__experimentalBlockSettingsMenuFirstItem>
 				{ ( { onClose } ) => (
 					<BlockInspectorButton onClick={ onClose } />
