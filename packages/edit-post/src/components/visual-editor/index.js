@@ -39,14 +39,6 @@ function Canvas( { settings } ) {
 	useCanvasClickRedirect( ref );
 	useEditorStyles( ref, settings.styles );
 
-	function setBodyRef( newRef ) {
-		if ( newRef ) {
-			ref.current = newRef.ownerDocument.body;
-		} else {
-			ref.current = null;
-		}
-	}
-
 	const hasMetaBoxes = useSelect(
 		( select ) => select( 'core/edit-post' ).hasMetaBoxes(),
 		[]
@@ -64,17 +56,16 @@ function Canvas( { settings } ) {
 	}, [ hasMetaBoxes ] );
 
 	return (
-		<DropZoneProvider>
-			<WritingFlow>
-				<div
-					ref={ setBodyRef }
-					className="edit-post-visual-editor__post-title-wrapper"
-				>
-					<PostTitle />
-				</div>
-				<BlockList />
-			</WritingFlow>
-		</DropZoneProvider>
+		<div tabIndex="-1" ref={ ref }>
+			<DropZoneProvider>
+				<WritingFlow>
+					<div className="edit-post-visual-editor__post-title-wrapper">
+						<PostTitle />
+					</div>
+					<BlockList />
+				</WritingFlow>
+			</DropZoneProvider>
+		</div>
 	);
 }
 
