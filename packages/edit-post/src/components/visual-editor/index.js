@@ -73,15 +73,14 @@ export default function VisualEditor( { settings } ) {
 	const deviceType = useSelect( ( select ) => {
 		return select( 'core/edit-post' ).__experimentalGetPreviewDeviceType();
 	}, [] );
-	const desktopCanvasStyles = { height: '100%' };
 	const resizedCanvasStyles = useResizeCanvas( deviceType );
 
 	return (
-		<div className="edit-post-visual-editor" style={ { height: '100%' } }>
+		<div className="edit-post-visual-editor">
 			<VisualEditorGlobalKeyboardShortcuts />
 			<Popover.Slot name="block-toolbar" />
 			<Iframe
-				style={ resizedCanvasStyles || desktopCanvasStyles }
+				style={ resizedCanvasStyles }
 				head={ window.__editorStyles.html }
 			>
 				<Canvas settings={ settings } />

@@ -295,7 +295,7 @@ describe( 'Reusable blocks', () => {
 
 		// Click the block to give it focus
 		const blockSelector = 'p[data-title="Paragraph"]';
-		await page.waitForSelector( blockSelector );
+		await canvas().waitForSelector( blockSelector );
 		await page.click( blockSelector );
 
 		// Delete the block, leaving the reusable block empty

@@ -278,9 +278,7 @@ describe( 'adding blocks', () => {
 		await page.keyboard.type( 'First paragraph' );
 		await insertBlock( 'Image' );
 		await showBlockToolbar();
-		const paragraphBlock = canvas() page.$(
-			'p[aria-label="Paragraph block"]'
-		);
+		const paragraphBlock = canvas().$( 'p[aria-label="Paragraph block"]' );
 		paragraphBlock.click();
 		await showBlockToolbar();
 
