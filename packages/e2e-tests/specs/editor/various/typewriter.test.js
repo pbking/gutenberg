@@ -1,15 +1,18 @@
 /**
  * WordPress dependencies
  */
-import { createNewPost } from '@wordpress/e2e-test-utils';
+import { createNewPost, canvas } from '@wordpress/e2e-test-utils';
 
 describe( 'TypeWriter', () => {
 	beforeEach( async () => {
 		await createNewPost();
 	} );
 
-	const getCaretPosition = async () =>
-		await page.evaluate( () => wp.dom.computeCaretRect( window ).y );
+	async function getCaretPosition() {
+		return await canvas().evaluate( () => {
+			return window.top.wp.dom.computeCaretRect( window ).y;
+		} );
+	}
 
 	// Allow the scroll position to be 1px off.
 	const BUFFER = 1;

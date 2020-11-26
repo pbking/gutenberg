@@ -44,15 +44,17 @@ function Canvas( { settings } ) {
 		[]
 	);
 
-	// Add a constant padding for the typewritter effect. When typing at the
-	// bottom, there needs to be room to scroll up.
+	// Add a constant padding of 40% of the viewport for the typewritter effect.
+	// When typing at the bottom, there needs to be room to scroll up.
 	useEffect( () => {
 		if ( hasMetaBoxes ) {
 			ref.current.style.paddingBottom = '';
 			return;
 		}
 
-		ref.current.style.paddingBottom = '40vh';
+		const padding = ( 4 * window.top.innerHeight ) / 10;
+
+		ref.current.style.paddingBottom = padding + 'px';
 	}, [ hasMetaBoxes ] );
 
 	return (

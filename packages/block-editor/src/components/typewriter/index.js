@@ -91,24 +91,36 @@ export function useTypewriter( ref ) {
 				return;
 			}
 
-			const scrollContainer = getScrollContainer( ref.current );
+			const { frameElement } = defaultView;
+
+			const scrollContainer = getScrollContainer(
+				frameElement || ref.current
+			);
 
 			// The page must be scrollable.
 			if ( ! scrollContainer ) {
 				return;
 			}
 
-			const windowScroll = scrollContainer === ownerDocument.body;
+			let caretTop = caretRect.top;
+
+			if ( frameElement ) {
+				caretTop += frameElement.getBoundingClientRect().top;
+			}
+
+			const scrollDocument = scrollContainer.ownerDocument;
+			const scrollWindow = scrollDocument.defaultView;
+			const windowScroll = scrollContainer === scrollDocument.body;
 			const scrollY = windowScroll
-				? defaultView.scrollY
+				? scrollWindow.scrollY
 				: scrollContainer.scrollTop;
 			const scrollContainerY = windowScroll
 				? 0
 				: scrollContainer.getBoundingClientRect().top;
 			const relativeScrollPosition = windowScroll
-				? caretRect.top / defaultView.innerHeight
-				: ( caretRect.top - scrollContainerY ) /
-				  ( defaultView.innerHeight - scrollContainerY );
+				? caretTop / scrollWindow.innerHeight
+				: ( caretTop - scrollContainerY ) /
+				  ( scrollWindow.innerHeight - scrollContainerY );
 
 			// If the scroll position is at the start, the active editable element
 			// is the last one, and the caret is positioned within the initial
@@ -134,10 +146,10 @@ export function useTypewriter( ref ) {
 			// view.
 			if (
 				// The caret is under the lower fold.
-				caretRect.top + caretRect.height >
+				caretTop + caretRect.height >
 					scrollContainerY + scrollContainerHeight ||
 				// The caret is above the upper fold.
-				caretRect.top < scrollContainerY
+				caretTop < scrollContainerY
 			) {
 				// Reset the caret position to maintain.
 				caretRect = currentCaretRect;
