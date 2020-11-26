@@ -3,7 +3,7 @@
  * Call this function to reveal it.
  */
 export async function showBlockToolbar() {
-	const iframe = await page.$( 'iframe[name="editor-canvas"]' );
+	const iframe = await page.$( '.interface-interface-skeleton__content' );
 	const iframeRect = await iframe.boundingBox();
 	// Move the mouse to disable the isTyping mode
 	await page.mouse.move( iframeRect.x + 50, iframeRect.y + 50 );
