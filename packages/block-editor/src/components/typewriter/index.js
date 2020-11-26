@@ -10,6 +10,18 @@ const isIE = window.navigator.userAgent.indexOf( 'Trident' ) !== -1;
 const arrowKeyCodes = new Set( [ UP, DOWN, LEFT, RIGHT ] );
 const initialTriggerPercentage = 0.75;
 
+function computeCaretRectWithIframe( win ) {
+	const { frameElement } = win;
+	const caretRect = computeCaretRect( win );
+	const frameTop = frameElement
+		? frameElement.getBoundingClientRect().top
+		: 0;
+	return {
+		top: caretRect.top + frameTop,
+		height: caretRect.height,
+	};
+}
+
 export function useTypewriter( ref ) {
 	const hasSelectedBlock = useSelect( ( select ) =>
 		select( 'core/block-editor' ).hasSelectedBlock()
@@ -63,7 +75,7 @@ export function useTypewriter( ref ) {
 				return;
 			}
 
-			const currentCaretRect = computeCaretRect( defaultView );
+			const currentCaretRect = computeCaretRectWithIframe( defaultView );
 
 			if ( ! currentCaretRect ) {
 				return;
@@ -102,11 +114,7 @@ export function useTypewriter( ref ) {
 				return;
 			}
 
-			let caretTop = caretRect.top;
-
-			if ( frameElement ) {
-				caretTop += frameElement.getBoundingClientRect().top;
-			}
+			const caretTop = caretRect.top;
 
 			const scrollDocument = scrollContainer.ownerDocument;
 			const scrollWindow = scrollDocument.defaultView;
@@ -191,7 +199,7 @@ export function useTypewriter( ref ) {
 		 */
 		function computeCaretRectangle() {
 			if ( isSelectionEligibleForScroll() ) {
-				caretRect = computeCaretRect( defaultView );
+				caretRect = computeCaretRectWithIframe( defaultView );
 			}
 		}
 
@@ -218,7 +226,7 @@ export function useTypewriter( ref ) {
 
 		// When the user scrolls or resizes, the scroll position should be
 		// reset.
-		defaultView.addEventListener( 'scroll', onScrollResize, true );
+		defaultView.top.addEventListener( 'scroll', onScrollResize, true );
 		defaultView.addEventListener( 'resize', onScrollResize, true );
 
 		ref.current.addEventListener( 'keydown', onKeyDown );
@@ -230,7 +238,11 @@ export function useTypewriter( ref ) {
 		);
 
 		return () => {
-			defaultView.removeEventListener( 'scroll', onScrollResize, true );
+			defaultView.top.removeEventListener(
+				'scroll',
+				onScrollResize,
+				true
+			);
 			defaultView.removeEventListener( 'resize', onScrollResize, true );
 
 			ref.current.removeEventListener( 'keydown', onKeyDown );

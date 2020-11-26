@@ -10,7 +10,12 @@ describe( 'TypeWriter', () => {
 
 	async function getCaretPosition() {
 		return await canvas().evaluate( () => {
-			return window.top.wp.dom.computeCaretRect( window ).y;
+			const { frameElement } = window;
+			const caretRect = window.top.wp.dom.computeCaretRect( window );
+			const frameTop = frameElement
+				? frameElement.getBoundingClientRect().top
+				: 0;
+			return caretRect.top + frameTop;
 		} );
 	}
 
@@ -54,7 +59,7 @@ describe( 'TypeWriter', () => {
 
 		// Type until the text wraps.
 		while (
-			await page.evaluate(
+			await canvas().evaluate(
 				() =>
 					document.activeElement.clientHeight <=
 					parseInt(
@@ -107,6 +112,10 @@ describe( 'TypeWriter', () => {
 				( wp.dom.getScrollContainer(
 					document.activeElement
 				).scrollTop = 1 )
+		);
+
+		await page.evaluate(
+			() => new Promise( window.requestAnimationFrame )
 		);
 
 		const initialPosition = await getCaretPosition();
