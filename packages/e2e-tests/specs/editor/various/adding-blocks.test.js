@@ -278,8 +278,10 @@ describe( 'adding blocks', () => {
 		await page.keyboard.type( 'First paragraph' );
 		await insertBlock( 'Image' );
 		await showBlockToolbar();
-		const paragraphBlock = canvas().$( 'p[aria-label="Paragraph block"]' );
-		paragraphBlock.click();
+		const paragraphBlock = await canvas().$(
+			'p[aria-label="Paragraph block"]'
+		);
+		await paragraphBlock.click();
 		await showBlockToolbar();
 
 		// Open the global inserter and search for the Heading block.

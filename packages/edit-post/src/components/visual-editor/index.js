@@ -30,13 +30,16 @@ import { useSelect } from '@wordpress/data';
 
 function Canvas( { settings } ) {
 	const ref = useRef();
+	const html = useRef();
+	const body = useRef();
 
 	useScrollMultiSelectionIntoView( ref );
 	useBlockSelectionClearer( ref );
 	useTypewriter( ref );
 	useClipboardHandler( ref );
 	useTypingObserver( ref );
-	useCanvasClickRedirect( ref );
+	useCanvasClickRedirect( html );
+	useCanvasClickRedirect( body );
 	useEditorStyles( ref, settings.styles );
 
 	const hasMetaBoxes = useSelect(
@@ -48,20 +51,33 @@ function Canvas( { settings } ) {
 	// When typing at the bottom, there needs to be room to scroll up.
 	useEffect( () => {
 		if ( hasMetaBoxes ) {
-			ref.current.style.paddingBottom = '';
+			body.current.style.paddingBottom = '';
 			return;
 		}
 
 		const padding = ( 4 * window.top.innerHeight ) / 10;
 
-		ref.current.style.paddingBottom = padding + 'px';
+		body.current.style.paddingBottom = padding + 'px';
 	}, [ hasMetaBoxes ] );
+
+	function setBodyRef( newRef ) {
+		if ( newRef ) {
+			body.current = newRef.ownerDocument.body;
+			html.current = newRef.ownerDocument.documentElement;
+		} else {
+			body.current = null;
+			html.current = null;
+		}
+	}
 
 	return (
 		<div tabIndex="-1" ref={ ref }>
 			<DropZoneProvider>
 				<WritingFlow>
-					<div className="edit-post-visual-editor__post-title-wrapper">
+					<div
+						ref={ setBodyRef }
+						className="edit-post-visual-editor__post-title-wrapper"
+					>
 						<PostTitle />
 					</div>
 					<BlockList />

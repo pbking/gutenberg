@@ -15,6 +15,8 @@ function IframeContent( { doc, head, children } ) {
 		doc.body.className = className;
 		// Necessary for the resize listener to work correctly.
 		doc.body.style.position = 'absolute';
+		doc.body.style.right = '0';
+		doc.body.style.left = '0';
 		// Body style must be overridable by themes.
 		doc.head.innerHTML = '<style>body{margin:0}</style>' + head;
 		doc.dir = document.dir;
