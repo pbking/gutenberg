@@ -113,6 +113,18 @@ async function emulateSelectAll() {
 export async function setClipboardData( { plainText = '', html = '' } ) {
 	await page.evaluate(
 		( _plainText, _html ) => {
+			function getActiveWindow( doc ) {
+				const { activeElement } = doc;
+
+				if ( activeElement.nodeName === 'IFRAME' ) {
+					return getActiveWindow( activeElement.contentDocument );
+				}
+
+				return doc.defaultView;
+			}
+
+			const window = getActiveWindow( document );
+
 			window._clipboardData = new DataTransfer();
 			window._clipboardData.setData( 'text/plain', _plainText );
 			window._clipboardData.setData( 'text/html', _html );
