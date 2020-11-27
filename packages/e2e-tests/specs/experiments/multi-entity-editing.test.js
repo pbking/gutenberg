@@ -9,6 +9,7 @@ import {
 	trashAllPosts,
 	activateTheme,
 	canvas,
+	clickBlockToolbarButton,
 } from '@wordpress/e2e-test-utils';
 import { addQueryArgs } from '@wordpress/url';
 
@@ -47,8 +48,7 @@ const createTemplatePart = async (
 			? '.wp-block-template-part .wp-block-template-part .block-editor-block-list__layout'
 			: '.wp-block-template-part .block-editor-block-list__layout'
 	);
-	await page.waitForSelector( '.wp-block-template-part__name-panel input' );
-	await page.focus( '.wp-block-template-part__name-panel input' );
+	await clickBlockToolbarButton( 'Name', 'label' );
 	await page.keyboard.type( templatePartName );
 };
 
