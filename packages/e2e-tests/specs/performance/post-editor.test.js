@@ -107,6 +107,7 @@ describe( 'Post Editor Performance', () => {
 		while ( i-- ) {
 			const startTime = new Date();
 			await page.reload();
+			await page.waitForSelector( 'iframe[title="Editor canvas"]' );
 			await canvas().waitForSelector( '.wp-block' );
 			results.load.push( new Date() - startTime );
 		}

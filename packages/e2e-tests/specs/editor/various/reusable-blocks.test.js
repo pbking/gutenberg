@@ -293,10 +293,12 @@ describe( 'Reusable blocks', () => {
 
 		await page.waitForNavigation();
 
+		await page.waitForSelector( 'iframe[title="Editor canvas"]' );
+
 		// Click the block to give it focus
 		const blockSelector = 'p[data-title="Paragraph"]';
 		await canvas().waitForSelector( blockSelector );
-		await page.click( blockSelector );
+		await canvas().click( blockSelector );
 
 		// Delete the block, leaving the reusable block empty
 		await clickBlockToolbarButton( 'More options' );
