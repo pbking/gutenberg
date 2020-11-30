@@ -22,16 +22,20 @@ describe( 'DefaultBlockAppender', () => {
 
 	it( 'should match snapshot', () => {
 		const onAppend = jest.fn();
-		const wrapper = shallow( <DefaultBlockAppender isVisible onAppend={ onAppend } showPrompt /> );
+		const wrapper = shallow(
+			<DefaultBlockAppender isVisible onAppend={ onAppend } showPrompt />
+		);
 
 		expect( wrapper ).toMatchSnapshot();
 	} );
 
 	it( 'should append a default block when input focused', () => {
 		const onAppend = jest.fn();
-		const wrapper = shallow( <DefaultBlockAppender isVisible onAppend={ onAppend } showPrompt /> );
+		const wrapper = shallow(
+			<DefaultBlockAppender isVisible onAppend={ onAppend } showPrompt />
+		);
 
-		wrapper.find( 'TextareaAutosize' ).simulate( 'focus' );
+		wrapper.find( 'ForwardRef' ).simulate( 'focus' );
 
 		expect( wrapper ).toMatchSnapshot();
 
@@ -40,8 +44,14 @@ describe( 'DefaultBlockAppender', () => {
 
 	it( 'should optionally show without prompt', () => {
 		const onAppend = jest.fn();
-		const wrapper = shallow( <DefaultBlockAppender isVisible onAppend={ onAppend } showPrompt={ false } /> );
-		const input = wrapper.find( 'TextareaAutosize' );
+		const wrapper = shallow(
+			<DefaultBlockAppender
+				isVisible
+				onAppend={ onAppend }
+				showPrompt={ false }
+			/>
+		);
+		const input = wrapper.find( 'ForwardRef' );
 
 		expect( input.prop( 'value' ) ).toEqual( '' );
 

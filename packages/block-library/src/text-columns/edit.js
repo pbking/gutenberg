@@ -13,10 +13,11 @@ import {
 	BlockAlignmentToolbar,
 	InspectorControls,
 	RichText,
+	useBlockProps,
 } from '@wordpress/block-editor';
 import deprecated from '@wordpress/deprecated';
 
-export default function TextColumnsEdit( { attributes, setAttributes, className } ) {
+export default function TextColumnsEdit( { attributes, setAttributes } ) {
 	const { width, content, columns } = attributes;
 
 	deprecated( 'The Text Columns block', {
@@ -29,7 +30,9 @@ export default function TextColumnsEdit( { attributes, setAttributes, className 
 			<BlockControls>
 				<BlockAlignmentToolbar
 					value={ width }
-					onChange={ ( nextWidth ) => setAttributes( { width: nextWidth } ) }
+					onChange={ ( nextWidth ) =>
+						setAttributes( { width: nextWidth } )
+					}
 					controls={ [ 'center', 'wide', 'full' ] }
 				/>
 			</BlockControls>
@@ -38,17 +41,26 @@ export default function TextColumnsEdit( { attributes, setAttributes, className 
 					<RangeControl
 						label={ __( 'Columns' ) }
 						value={ columns }
-						onChange={ ( value ) => setAttributes( { columns: value } ) }
+						onChange={ ( value ) =>
+							setAttributes( { columns: value } )
+						}
 						min={ 2 }
 						max={ 4 }
 						required
 					/>
 				</PanelBody>
 			</InspectorControls>
-			<div className={ `${ className } align${ width } columns-${ columns }` }>
+			<div
+				{ ...useBlockProps( {
+					className: `align${ width } columns-${ columns }`,
+				} ) }
+			>
 				{ times( columns, ( index ) => {
 					return (
-						<div className="wp-block-column" key={ `column-${ index }` }>
+						<div
+							className="wp-block-column"
+							key={ `column-${ index }` }
+						>
 							<RichText
 								tagName="p"
 								value={ get( content, [ index, 'children' ] ) }

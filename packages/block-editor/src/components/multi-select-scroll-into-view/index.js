@@ -6,8 +6,8 @@ import scrollIntoView from 'dom-scroll-into-view';
 /**
  * WordPress dependencies
  */
-import { Component } from '@wordpress/element';
-import { withSelect } from '@wordpress/data';
+import { useEffect, useRef } from '@wordpress/element';
+import { useSelect } from '@wordpress/data';
 import { getScrollContainer } from '@wordpress/dom';
 
 /**
@@ -15,26 +15,35 @@ import { getScrollContainer } from '@wordpress/dom';
  */
 import { getBlockDOMNode } from '../../utils/dom';
 
-class MultiSelectScrollIntoView extends Component {
-	componentDidUpdate() {
-		// Relies on expectation that `componentDidUpdate` will only be called
-		// if value of `extentClientId` changes.
-		this.scrollIntoView();
-	}
+export function useScrollMultiSelectionIntoView( ref ) {
+	const selectionEnd = useSelect( ( select ) => {
+		const {
+			getBlockSelectionEnd,
+			hasMultiSelection,
+			isMultiSelecting,
+		} = select( 'core/block-editor' );
 
-	/**
-	 * Ensures that if a multi-selection exists, the extent of the selection is
-	 * visible within the nearest scrollable container.
-	 *
-	 * @return {void}
-	 */
-	scrollIntoView() {
-		const { extentClientId } = this.props;
-		if ( ! extentClientId ) {
+		const blockSelectionEnd = getBlockSelectionEnd();
+
+		if (
+			! blockSelectionEnd ||
+			isMultiSelecting() ||
+			! hasMultiSelection()
+		) {
 			return;
 		}
 
-		const extentNode = getBlockDOMNode( extentClientId );
+		return blockSelectionEnd;
+	}, [] );
+
+	useEffect( () => {
+		if ( ! selectionEnd ) {
+			return;
+		}
+
+		const { ownerDocument } = ref.current;
+		const extentNode = getBlockDOMNode( selectionEnd, ownerDocument );
+
 		if ( ! extentNode ) {
 			return;
 		}
@@ -50,17 +59,15 @@ class MultiSelectScrollIntoView extends Component {
 		scrollIntoView( extentNode, scrollContainer, {
 			onlyScrollIfNeeded: true,
 		} );
-	}
-
-	render() {
-		return null;
-	}
+	}, [ selectionEnd ] );
 }
 
-export default withSelect( ( select ) => {
-	const { getLastMultiSelectedBlockClientId } = select( 'core/block-editor' );
-
-	return {
-		extentClientId: getLastMultiSelectedBlockClientId(),
-	};
-} )( MultiSelectScrollIntoView );
+/**
+ * Scrolls the multi block selection end into view if not in view already. This
+ * is important to do after selection by keyboard.
+ */
+export default function MultiSelectScrollIntoView() {
+	const ref = useRef();
+	useScrollMultiSelectionIntoView( ref );
+	return <div ref={ ref } />;
+}

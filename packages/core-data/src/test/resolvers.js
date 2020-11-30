@@ -1,47 +1,150 @@
 /**
+ * WordPress dependencies
+ */
+import { apiFetch } from '@wordpress/data-controls';
+
+/**
  * Internal dependencies
  */
-import { getEntityRecord, getEntityRecords, getEmbedPreview, canUser, getAutosaves, getCurrentUser } from '../resolvers';
-import { receiveEntityRecords, receiveEmbedPreview, receiveUserPermission, receiveAutosaves, receiveCurrentUser } from '../actions';
-import { apiFetch } from '../controls';
+import {
+	getEntityRecord,
+	getEntityRecords,
+	getEmbedPreview,
+	canUser,
+	getAutosaves,
+	getCurrentUser,
+} from '../resolvers';
+import {
+	receiveEntityRecords,
+	receiveEmbedPreview,
+	receiveUserPermission,
+	receiveAutosaves,
+	receiveCurrentUser,
+} from '../actions';
+
+jest.mock( '../locks/actions', () => ( {
+	__unstableAcquireStoreLock: jest.fn( () => [
+		{
+			type: 'MOCKED_ACQUIRE_LOCK',
+		},
+	] ),
+	__unstableReleaseStoreLock: jest.fn( () => [
+		{
+			type: 'MOCKED_RELEASE_LOCK',
+		},
+	] ),
+} ) );
 
 describe( 'getEntityRecord', () => {
 	const POST_TYPE = { slug: 'post' };
 
 	it( 'yields with requested post type', async () => {
-		const entities = [ { name: 'postType', kind: 'root', baseURL: '/wp/v2/types' } ];
+		const entities = [
+			{ name: 'postType', kind: 'root', baseURL: '/wp/v2/types' },
+		];
 		const fulfillment = getEntityRecord( 'root', 'postType', 'post' );
 		// Trigger generator
 		fulfillment.next();
-		// Provide entities and trigger apiFetch
-		const { value: apiFetchAction } = fulfillment.next( entities );
-		expect( apiFetchAction.request ).toEqual( { path: '/wp/v2/types/post?context=edit' } );
+		// Provide entities and acquire lock
+		expect( fulfillment.next( entities ).value.type ).toEqual(
+			'MOCKED_ACQUIRE_LOCK'
+		);
+		// trigger apiFetch
+		const { value: apiFetchAction } = fulfillment.next();
+		expect( apiFetchAction.request ).toEqual( {
+			path: '/wp/v2/types/post?context=edit',
+		} );
 		// Provide response and trigger action
 		const { value: received } = fulfillment.next( POST_TYPE );
-		expect( received ).toEqual( receiveEntityRecords( 'root', 'postType', POST_TYPE ) );
+		expect( received ).toEqual(
+			receiveEntityRecords( 'root', 'postType', POST_TYPE )
+		);
+		// Release lock
+		expect( fulfillment.next().value.type ).toEqual(
+			'MOCKED_RELEASE_LOCK'
+		);
 	} );
 } );
 
 describe( 'getEntityRecords', () => {
 	const POST_TYPES = {
 		post: { slug: 'post' },
-		page: { slug: 'page' },
+		page: { slug: 'page', id: 2 },
 	};
+	const ENTITIES = [
+		{ name: 'postType', kind: 'root', baseURL: '/wp/v2/types' },
+		{ name: 'postType', kind: 'root', baseURL: '/wp/v2/types' },
+	];
 
 	it( 'yields with requested post type', async () => {
-		const entities = [
-			{ name: 'postType', kind: 'root', baseURL: '/wp/v2/types' },
-		];
 		const fulfillment = getEntityRecords( 'root', 'postType' );
 
 		// Trigger generator
 		fulfillment.next();
-		// Provide entities and trigger apiFetch
-		const { value: apiFetchAction } = fulfillment.next( entities );
-		expect( apiFetchAction.request ).toEqual( { path: '/wp/v2/types?context=edit' } );
+
+		// Provide entities and acquire lock
+		fulfillment.next( ENTITIES );
+
+		// trigger apiFetch
+		const { value: apiFetchAction } = fulfillment.next();
+
+		expect( apiFetchAction.request ).toEqual( {
+			path: '/wp/v2/types?context=edit',
+		} );
 		// Provide response and trigger action
 		const { value: received } = fulfillment.next( POST_TYPES );
-		expect( received ).toEqual( receiveEntityRecords( 'root', 'postType', Object.values( POST_TYPES ), {} ) );
+		expect( received ).toEqual(
+			receiveEntityRecords(
+				'root',
+				'postType',
+				Object.values( POST_TYPES ),
+				{}
+			)
+		);
+	} );
+
+	it( 'Uses state locks', async () => {
+		const fulfillment = getEntityRecords( 'root', 'postType' );
+
+		// Repeat the steps from `yields with requested post type` test
+		fulfillment.next();
+		// Provide entities and acquire lock
+		expect( fulfillment.next( ENTITIES ).value.type ).toEqual(
+			'MOCKED_ACQUIRE_LOCK'
+		);
+		fulfillment.next();
+		fulfillment.next( POST_TYPES );
+
+		// Resolve specific entity records
+		fulfillment.next();
+		fulfillment.next();
+
+		// Release lock
+		expect( fulfillment.next().value.type ).toEqual(
+			'MOCKED_RELEASE_LOCK'
+		);
+	} );
+
+	it( 'marks specific entity records as resolved', async () => {
+		const fulfillment = getEntityRecords( 'root', 'postType' );
+
+		// Repeat the steps from `yields with requested post type` test
+		fulfillment.next();
+		fulfillment.next( ENTITIES );
+		fulfillment.next();
+		fulfillment.next( POST_TYPES );
+
+		// It should mark the entity record that has an ID as resolved
+		expect( fulfillment.next().value ).toEqual( {
+			type: 'START_RESOLUTION',
+			selectorName: 'getEntityRecord',
+			args: [ ENTITIES[ 1 ].kind, ENTITIES[ 1 ].name, 2 ],
+		} );
+		expect( fulfillment.next().value ).toEqual( {
+			type: 'FINISH_RESOLUTION',
+			selectorName: 'getEntityRecord',
+			args: [ ENTITIES[ 1 ].kind, ENTITIES[ 1 ].name, 2 ],
+		} );
 	} );
 } );
 
@@ -56,8 +159,11 @@ describe( 'getEmbedPreview', () => {
 		// Trigger generator
 		fulfillment.next();
 		// Provide apiFetch response and trigger Action
-		const received = ( await fulfillment.next( SUCCESSFUL_EMBED_RESPONSE ) ).value;
-		expect( received ).toEqual( receiveEmbedPreview( EMBEDDABLE_URL, SUCCESSFUL_EMBED_RESPONSE ) );
+		const received = ( await fulfillment.next( SUCCESSFUL_EMBED_RESPONSE ) )
+			.value;
+		expect( received ).toEqual(
+			receiveEmbedPreview( EMBEDDABLE_URL, SUCCESSFUL_EMBED_RESPONSE )
+		);
 	} );
 
 	it( 'yields false if the URL cannot be embedded', async () => {
@@ -66,7 +172,9 @@ describe( 'getEmbedPreview', () => {
 		fulfillment.next();
 		// Provide invalid response and trigger Action
 		const received = ( await fulfillment.throw( { status: 404 } ) ).value;
-		expect( received ).toEqual( receiveEmbedPreview( UNEMBEDDABLE_URL, UNEMBEDDABLE_RESPONSE ) );
+		expect( received ).toEqual(
+			receiveEmbedPreview( UNEMBEDDABLE_URL, UNEMBEDDABLE_RESPONSE )
+		);
 	} );
 } );
 
@@ -76,11 +184,13 @@ describe( 'canUser', () => {
 
 		let received = generator.next();
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( apiFetch( {
-			path: '/wp/v2/media',
-			method: 'OPTIONS',
-			parse: false,
-		} ) );
+		expect( received.value ).toEqual(
+			apiFetch( {
+				path: '/wp/v2/media',
+				method: 'OPTIONS',
+				parse: false,
+			} )
+		);
 
 		received = generator.throw( { status: 404 } );
 		expect( received.done ).toBe( true );
@@ -92,11 +202,13 @@ describe( 'canUser', () => {
 
 		let received = generator.next();
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( apiFetch( {
-			path: '/wp/v2/media',
-			method: 'OPTIONS',
-			parse: false,
-		} ) );
+		expect( received.value ).toEqual(
+			apiFetch( {
+				path: '/wp/v2/media',
+				method: 'OPTIONS',
+				parse: false,
+			} )
+		);
 
 		received = generator.next( {
 			headers: {
@@ -104,7 +216,9 @@ describe( 'canUser', () => {
 			},
 		} );
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( receiveUserPermission( 'create/media', false ) );
+		expect( received.value ).toEqual(
+			receiveUserPermission( 'create/media', false )
+		);
 
 		received = generator.next();
 		expect( received.done ).toBe( true );
@@ -116,11 +230,13 @@ describe( 'canUser', () => {
 
 		let received = generator.next();
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( apiFetch( {
-			path: '/wp/v2/media',
-			method: 'OPTIONS',
-			parse: false,
-		} ) );
+		expect( received.value ).toEqual(
+			apiFetch( {
+				path: '/wp/v2/media',
+				method: 'OPTIONS',
+				parse: false,
+			} )
+		);
 
 		received = generator.next( {
 			headers: {
@@ -128,7 +244,9 @@ describe( 'canUser', () => {
 			},
 		} );
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( receiveUserPermission( 'create/media', true ) );
+		expect( received.value ).toEqual(
+			receiveUserPermission( 'create/media', true )
+		);
 
 		received = generator.next();
 		expect( received.done ).toBe( true );
@@ -140,11 +258,13 @@ describe( 'canUser', () => {
 
 		let received = generator.next();
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( apiFetch( {
-			path: '/wp/v2/blocks/123',
-			method: 'GET',
-			parse: false,
-		} ) );
+		expect( received.value ).toEqual(
+			apiFetch( {
+				path: '/wp/v2/blocks/123',
+				method: 'GET',
+				parse: false,
+			} )
+		);
 
 		received = generator.next( {
 			headers: {
@@ -152,7 +272,9 @@ describe( 'canUser', () => {
 			},
 		} );
 		expect( received.done ).toBe( false );
-		expect( received.value ).toEqual( receiveUserPermission( 'update/blocks/123', true ) );
+		expect( received.value ).toEqual(
+			receiveUserPermission( 'update/blocks/123', true )
+		);
 
 		received = generator.next();
 		expect( received.done ).toBe( true );
@@ -161,11 +283,13 @@ describe( 'canUser', () => {
 } );
 
 describe( 'getAutosaves', () => {
-	const SUCCESSFUL_RESPONSE = [ {
-		title: 'test title',
-		excerpt: 'test excerpt',
-		content: 'test content',
-	} ];
+	const SUCCESSFUL_RESPONSE = [
+		{
+			title: 'test title',
+			excerpt: 'test excerpt',
+			content: 'test content',
+		},
+	];
 
 	it( 'yields with fetched autosaves', async () => {
 		const postType = 'post';
@@ -180,11 +304,16 @@ describe( 'getAutosaves', () => {
 		// Trigger generator with the postEntity and assert that correct path is formed
 		// in the apiFetch request.
 		const { value: apiFetchAction } = fulfillment.next( postEntity );
-		expect( apiFetchAction.request ).toEqual( { path: `/wp/v2/${ restBase }/${ postId }/autosaves?context=edit` } );
+		expect( apiFetchAction.request ).toEqual( {
+			path: `/wp/v2/${ restBase }/${ postId }/autosaves?context=edit`,
+		} );
 
 		// Provide apiFetch response and trigger Action
-		const received = ( await fulfillment.next( SUCCESSFUL_RESPONSE ) ).value;
-		expect( received ).toEqual( receiveAutosaves( 1, SUCCESSFUL_RESPONSE ) );
+		const received = ( await fulfillment.next( SUCCESSFUL_RESPONSE ) )
+			.value;
+		expect( received ).toEqual(
+			receiveAutosaves( 1, SUCCESSFUL_RESPONSE )
+		);
 	} );
 
 	it( ' yields undefined if no autosaves exist for the post', async () => {
@@ -200,7 +329,9 @@ describe( 'getAutosaves', () => {
 		// Trigger generator with the postEntity and assert that correct path is formed
 		// in the apiFetch request.
 		const { value: apiFetchAction } = fulfillment.next( postEntity );
-		expect( apiFetchAction.request ).toEqual( { path: `/wp/v2/${ restBase }/${ postId }/autosaves?context=edit` } );
+		expect( apiFetchAction.request ).toEqual( {
+			path: `/wp/v2/${ restBase }/${ postId }/autosaves?context=edit`,
+		} );
 
 		// Provide apiFetch response and trigger Action
 		const received = ( await fulfillment.next( [] ) ).value;
@@ -220,7 +351,8 @@ describe( 'getCurrentUser', () => {
 		fulfillment.next();
 
 		// Provide apiFetch response and trigger Action
-		const received = ( await fulfillment.next( SUCCESSFUL_RESPONSE ) ).value;
+		const received = ( await fulfillment.next( SUCCESSFUL_RESPONSE ) )
+			.value;
 		expect( received ).toEqual( receiveCurrentUser( SUCCESSFUL_RESPONSE ) );
 	} );
 } );

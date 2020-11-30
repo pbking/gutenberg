@@ -2,126 +2,90 @@
  * External dependencies
  */
 import { identity } from 'lodash';
-import { Text, View, Keyboard, SafeAreaView, Platform } from 'react-native';
-import { subscribeMediaAppend } from 'react-native-gutenberg-bridge';
+import { View, Platform, TouchableWithoutFeedback } from 'react-native';
 
 /**
  * WordPress dependencies
  */
-import { Component, Fragment } from '@wordpress/element';
-import { __ } from '@wordpress/i18n';
+import { Component, createContext } from '@wordpress/element';
 import { withDispatch, withSelect } from '@wordpress/data';
-import { compose } from '@wordpress/compose';
-import { createBlock, isUnmodifiedDefaultBlock } from '@wordpress/blocks';
-import { HTMLTextInput, KeyboardAvoidingView, KeyboardAwareFlatList, ReadableContentView } from '@wordpress/components';
+import { compose, withPreferredColorScheme } from '@wordpress/compose';
+import { createBlock } from '@wordpress/blocks';
+import {
+	KeyboardAwareFlatList,
+	ReadableContentView,
+	WIDE_ALIGNMENTS,
+} from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
 
 /**
  * Internal dependencies
  */
 import styles from './style.scss';
-import BlockListBlock from './block';
-import BlockToolbar from '../block-toolbar';
-import DefaultBlockAppender from '../default-block-appender';
-import Inserter from '../inserter';
+import BlockListAppender from '../block-list-appender';
+import BlockListItem from './block-list-item.native';
 
-const blockMobileToolbarHeight = 44;
-const toolbarHeight = 44;
+const BlockListContext = createContext();
+
+const stylesMemo = {};
+const getStyles = (
+	isRootList,
+	isStackedHorizontally,
+	horizontalAlignment
+) => {
+	if ( isRootList ) {
+		return;
+	}
+	const styleName = `${ isStackedHorizontally }-${ horizontalAlignment }`;
+	if ( stylesMemo[ styleName ] ) {
+		return stylesMemo[ styleName ];
+	}
+	const computedStyles = [
+		isStackedHorizontally && styles.horizontal,
+		horizontalAlignment && styles[ `is-aligned-${ horizontalAlignment }` ],
+	];
+	stylesMemo[ styleName ] = computedStyles;
+	return computedStyles;
+};
 
 export class BlockList extends Component {
 	constructor() {
 		super( ...arguments );
-
-		this.renderItem = this.renderItem.bind( this );
-		this.renderAddBlockSeparator = this.renderAddBlockSeparator.bind( this );
-		this.shouldFlatListPreventAutomaticScroll = this.shouldFlatListPreventAutomaticScroll.bind( this );
-		this.renderDefaultBlockAppender = this.renderDefaultBlockAppender.bind( this );
-		this.onBlockTypeSelected = this.onBlockTypeSelected.bind( this );
-		this.keyboardDidShow = this.keyboardDidShow.bind( this );
-		this.keyboardDidHide = this.keyboardDidHide.bind( this );
-		this.onCaretVerticalPositionChange = this.onCaretVerticalPositionChange.bind( this );
-		this.scrollViewInnerRef = this.scrollViewInnerRef.bind( this );
-
-		this.state = {
-			blockTypePickerVisible: false,
-			isKeyboardVisible: false,
+		this.extraData = {
+			parentWidth: this.props.parentWidth,
+			renderFooterAppender: this.props.renderFooterAppender,
+			renderAppender: this.props.renderAppender,
+			onDeleteBlock: this.props.onDeleteBlock,
+			contentStyle: this.props.contentstyle,
 		};
+		this.renderItem = this.renderItem.bind( this );
+		this.renderBlockListFooter = this.renderBlockListFooter.bind( this );
+		this.onCaretVerticalPositionChange = this.onCaretVerticalPositionChange.bind(
+			this
+		);
+		this.scrollViewInnerRef = this.scrollViewInnerRef.bind( this );
+		this.addBlockToEndOfPost = this.addBlockToEndOfPost.bind( this );
+		this.shouldFlatListPreventAutomaticScroll = this.shouldFlatListPreventAutomaticScroll.bind(
+			this
+		);
+		this.shouldShowInnerBlockAppender = this.shouldShowInnerBlockAppender.bind(
+			this
+		);
+		this.renderEmptyList = this.renderEmptyList.bind( this );
+		this.getExtraData = this.getExtraData.bind( this );
 	}
 
-	// TODO: in the near future this will likely be changed to onShowBlockTypePicker and bound to this.props
-	// once we move the action to the toolbar
-	showBlockTypePicker( show ) {
-		this.setState( { blockTypePickerVisible: show } );
-	}
-
-	onBlockTypeSelected( itemValue ) {
-		this.setState( { blockTypePickerVisible: false } );
-
-		// create an empty block of the selected type
-		const newBlock = createBlock( itemValue );
-
-		this.finishBlockAppendingOrReplacing( newBlock );
-	}
-
-	finishBlockAppendingOrReplacing( newBlock ) {
-		// now determine whether we need to replace the currently selected block (if it's empty)
-		// or just add a new block as usual
-		if ( this.isReplaceable( this.props.selectedBlock ) ) {
-			// do replace here
-			this.props.replaceBlock( this.props.selectedBlockClientId, newBlock );
-		} else {
-			const indexAfterSelected = this.props.selectedBlockOrder + 1;
-			const insertionIndex = indexAfterSelected || this.props.blockCount;
-			this.props.insertBlock( newBlock, insertionIndex );
-		}
-	}
-
-	blockHolderBorderStyle() {
-		return this.state.isFullyBordered ? styles.blockHolderFullBordered : styles.blockHolderSemiBordered;
-	}
-
-	componentDidMount() {
-		this._isMounted = true;
-		Keyboard.addListener( 'keyboardDidShow', this.keyboardDidShow );
-		Keyboard.addListener( 'keyboardDidHide', this.keyboardDidHide );
-
-		this.subscriptionParentMediaAppend = subscribeMediaAppend( ( payload ) => {
-			// create an empty media block
-			const newMediaBlock = createBlock( 'core/' + payload.mediaType );
-
-			// now set the url and id
-			if ( payload.mediaType === 'image' ) {
-				newMediaBlock.attributes.url = payload.mediaUrl;
-			} else if ( payload.mediaType === 'video' ) {
-				newMediaBlock.attributes.src = payload.mediaUrl;
-			}
-
-			newMediaBlock.attributes.id = payload.mediaId;
-
-			// finally append or replace as appropriate
-			this.finishBlockAppendingOrReplacing( newMediaBlock );
-		} );
-	}
-
-	componentWillUnmount() {
-		Keyboard.removeListener( 'keyboardDidShow', this.keyboardDidShow );
-		Keyboard.removeListener( 'keyboardDidHide', this.keyboardDidHide );
-
-		if ( this.subscriptionParentMediaAppend ) {
-			this.subscriptionParentMediaAppend.remove();
-		}
-		this._isMounted = false;
-	}
-
-	keyboardDidShow() {
-		this.setState( { isKeyboardVisible: true } );
-	}
-
-	keyboardDidHide() {
-		this.setState( { isKeyboardVisible: false } );
+	addBlockToEndOfPost( newBlock ) {
+		this.props.insertBlock( newBlock, this.props.blockCount );
 	}
 
 	onCaretVerticalPositionChange( targetId, caretY, previousCaretY ) {
-		KeyboardAwareFlatList.handleCaretVerticalPositionChange( this.scrollViewRef, targetId, caretY, previousCaretY );
+		KeyboardAwareFlatList.handleCaretVerticalPositionChange(
+			this.scrollViewRef,
+			targetId,
+			caretY,
+			previousCaretY
+		);
 	}
 
 	scrollViewInnerRef( ref ) {
@@ -129,156 +93,278 @@ export class BlockList extends Component {
 	}
 
 	shouldFlatListPreventAutomaticScroll() {
-		return this.state.blockTypePickerVisible;
+		return this.props.isBlockInsertionPointVisible;
 	}
 
-	renderDefaultBlockAppender() {
+	shouldShowInnerBlockAppender() {
+		const { blockClientIds, renderAppender } = this.props;
+		return renderAppender && blockClientIds.length > 0;
+	}
+
+	renderEmptyList() {
 		return (
-			<ReadableContentView>
-				<DefaultBlockAppender
-					rootClientId={ this.props.rootClientId }
-					containerStyle={ [
-						styles.blockContainerFocused,
-						this.blockHolderBorderStyle(),
-						{ borderColor: 'transparent' },
-					] }
-				/>
-			</ReadableContentView>
+			<EmptyListComponentCompose
+				rootClientId={ this.props.rootClientId }
+				renderAppender={ this.props.renderAppender }
+				renderFooterAppender={ this.props.renderFooterAppender }
+			/>
 		);
 	}
 
-	renderList() {
-		return (
-			<View
-				style={ { flex: 1 } }
-				onAccessibilityEscape={ this.props.clearSelectedBlock }
-			>
-				<KeyboardAwareFlatList
-					{ ...( Platform.OS === 'android' ? { removeClippedSubviews: false } : {} ) } // Disable clipping on Android to fix focus losing. See https://github.com/wordpress-mobile/gutenberg-mobile/pull/741#issuecomment-472746541
-					accessibilityLabel="block-list"
-					innerRef={ this.scrollViewInnerRef }
-					blockToolbarHeight={ toolbarHeight }
-					innerToolbarHeight={ blockMobileToolbarHeight }
-					safeAreaBottomInset={ this.props.safeAreaBottomInset }
-					parentHeight={ this.props.rootViewHeight }
-					keyboardShouldPersistTaps="always"
-					style={ styles.list }
-					data={ this.props.blockClientIds }
-					extraData={ [ this.props.isFullyBordered ] }
-					keyExtractor={ identity }
-					renderItem={ this.renderItem }
-					shouldPreventAutomaticScroll={ this.shouldFlatListPreventAutomaticScroll }
-					title={ this.props.title }
-					ListHeaderComponent={ this.props.header }
-					ListEmptyComponent={ this.renderDefaultBlockAppender }
-				/>
-				<SafeAreaView>
-					<View style={ { height: toolbarHeight } } />
-				</SafeAreaView>
-				<KeyboardAvoidingView
-					style={ styles.blockToolbarKeyboardAvoidingView }
-					parentHeight={ this.props.rootViewHeight }
-				>
-					<BlockToolbar
-						onInsertClick={ () => {
-							this.showBlockTypePicker( true );
-						} }
-						showKeyboardHideButton={ this.state.isKeyboardVisible }
-					/>
-				</KeyboardAvoidingView>
-			</View>
-		);
+	getExtraData() {
+		const {
+			parentWidth,
+			renderFooterAppender,
+			onDeleteBlock,
+			contentStyle,
+			renderAppender,
+		} = this.props;
+		if (
+			this.extraData.parentWidth !== parentWidth ||
+			this.extraData.renderFooterAppender !== renderFooterAppender ||
+			this.extraData.onDeleteBlock !== onDeleteBlock ||
+			this.extraData.contentStyle !== contentStyle ||
+			this.extraData.renderAppender !== renderAppender
+		) {
+			this.extraData = {
+				parentWidth,
+				renderFooterAppender,
+				onDeleteBlock,
+				contentStyle,
+				renderAppender,
+			};
+		}
+		return this.extraData;
 	}
 
 	render() {
-		return (
-			<Fragment>
+		const { isRootList } = this.props;
+		// Use of Context to propagate the main scroll ref to its children e.g InnerBlocks
+		return isRootList ? (
+			<BlockListContext.Provider value={ this.scrollViewRef }>
 				{ this.renderList() }
-				{ this.state.blockTypePickerVisible && (
-					<Inserter
-						onDismiss={ () => this.showBlockTypePicker( false ) }
-						onValueSelected={ this.onBlockTypeSelected }
-						isReplacement={ this.isReplaceable( this.props.selectedBlock ) }
-						addExtraBottomPadding={ this.props.safeAreaBottomInset === 0 }
-					/>
-				) }
-			</Fragment>
+			</BlockListContext.Provider>
+		) : (
+			<BlockListContext.Consumer>
+				{ ( ref ) =>
+					this.renderList( {
+						parentScrollRef: ref,
+					} )
+				}
+			</BlockListContext.Consumer>
 		);
 	}
 
-	isReplaceable( block ) {
-		if ( ! block ) {
-			return false;
-		}
-		return isUnmodifiedDefaultBlock( block );
-	}
+	renderList( extraProps = {} ) {
+		const {
+			clearSelectedBlock,
+			blockClientIds,
+			title,
+			header,
+			isReadOnly,
+			isRootList,
+			horizontal,
+			marginVertical = styles.defaultBlock.marginTop,
+			marginHorizontal = styles.defaultBlock.marginLeft,
+			isFloatingToolbarVisible,
+			isStackedHorizontally,
+			horizontalAlignment,
+		} = this.props;
+		const { parentScrollRef } = extraProps;
 
-	renderItem( { item: clientId } ) {
-		const shouldReverseContent = this.isReplaceable( this.props.selectedBlock );
+		const {
+			blockToolbar,
+			blockBorder,
+			headerToolbar,
+			floatingToolbar,
+		} = styles;
 
+		const containerStyle = {
+			flex: isRootList ? 1 : 0,
+			// We set negative margin in the parent to remove the edge spacing between parent block and child block in ineer blocks
+			marginVertical: isRootList ? 0 : -marginVertical,
+			marginHorizontal: isRootList ? 0 : -marginHorizontal,
+		};
 		return (
-			<ReadableContentView reversed={ shouldReverseContent }>
-				<BlockListBlock
-					key={ clientId }
-					showTitle={ false }
-					clientId={ clientId }
-					rootClientId={ this.props.rootClientId }
-					onCaretVerticalPositionChange={ this.onCaretVerticalPositionChange }
-					borderStyle={ this.blockHolderBorderStyle() }
-					focusedBorderColor={ styles.blockHolderFocused.borderColor }
+			<View
+				style={ containerStyle }
+				onAccessibilityEscape={ clearSelectedBlock }
+			>
+				<KeyboardAwareFlatList
+					{ ...( Platform.OS === 'android'
+						? { removeClippedSubviews: false }
+						: {} ) } // Disable clipping on Android to fix focus losing. See https://github.com/wordpress-mobile/gutenberg-mobile/pull/741#issuecomment-472746541
+					accessibilityLabel="block-list"
+					autoScroll={ this.props.autoScroll }
+					innerRef={ ( ref ) => {
+						this.scrollViewInnerRef( parentScrollRef || ref );
+					} }
+					extraScrollHeight={
+						blockToolbar.height + blockBorder.width
+					}
+					inputAccessoryViewHeight={
+						headerToolbar.height +
+						( isFloatingToolbarVisible
+							? floatingToolbar.height
+							: 0 )
+					}
+					keyboardShouldPersistTaps="always"
+					scrollViewStyle={ [
+						{ flex: isRootList ? 1 : 0 },
+						! isRootList && styles.overflowVisible,
+					] }
+					horizontal={ horizontal }
+					extraData={ this.getExtraData() }
+					scrollEnabled={ isRootList }
+					contentContainerStyle={
+						horizontal && styles.horizontalContentContainer
+					}
+					style={ getStyles(
+						isRootList,
+						isStackedHorizontally,
+						horizontalAlignment
+					) }
+					data={ blockClientIds }
+					keyExtractor={ identity }
+					renderItem={ this.renderItem }
+					shouldPreventAutomaticScroll={
+						this.shouldFlatListPreventAutomaticScroll
+					}
+					title={ title }
+					ListHeaderComponent={ header }
+					ListEmptyComponent={ ! isReadOnly && this.renderEmptyList }
+					ListFooterComponent={ this.renderBlockListFooter }
 				/>
-				{ this.state.blockTypePickerVisible && this.props.isBlockSelected( clientId ) && this.renderAddBlockSeparator() }
-			</ReadableContentView>
-		);
-	}
-
-	renderAddBlockSeparator() {
-		return (
-			<View style={ styles.containerStyleAddHere } >
-				<View style={ styles.lineStyleAddHere }></View>
-				<Text style={ styles.labelStyleAddHere } >{ __( 'ADD BLOCK HERE' ) }</Text>
-				<View style={ styles.lineStyleAddHere }></View>
+				{ this.shouldShowInnerBlockAppender() && (
+					<View
+						style={ {
+							marginHorizontal:
+								marginHorizontal -
+								styles.innerAppender.marginLeft,
+						} }
+					>
+						<BlockListAppender
+							rootClientId={ this.props.rootClientId }
+							renderAppender={ this.props.renderAppender }
+							showSeparator
+						/>
+					</View>
+				) }
 			</View>
 		);
 	}
 
-	renderHTML() {
+	renderItem( { item: clientId } ) {
+		const {
+			contentResizeMode,
+			contentStyle,
+			onAddBlock,
+			onDeleteBlock,
+			rootClientId,
+			isStackedHorizontally,
+			parentWidth,
+			marginVertical = styles.defaultBlock.marginTop,
+			marginHorizontal = styles.defaultBlock.marginLeft,
+		} = this.props;
 		return (
-			<HTMLTextInput { ...this.props } parentHeight={ this.props.rootViewHeight } />
+			<BlockListItem
+				isStackedHorizontally={ isStackedHorizontally }
+				rootClientId={ rootClientId }
+				clientId={ clientId }
+				parentWidth={ parentWidth }
+				contentResizeMode={ contentResizeMode }
+				contentStyle={ contentStyle }
+				onAddBlock={ onAddBlock }
+				marginVertical={ marginVertical }
+				marginHorizontal={ marginHorizontal }
+				onDeleteBlock={ onDeleteBlock }
+				shouldShowInnerBlockAppender={
+					this.shouldShowInnerBlockAppender
+				}
+				onCaretVerticalPositionChange={
+					this.onCaretVerticalPositionChange
+				}
+			/>
 		);
+	}
+
+	renderBlockListFooter() {
+		const paragraphBlock = createBlock( 'core/paragraph' );
+		const {
+			isReadOnly,
+			withFooter = true,
+			renderFooterAppender,
+		} = this.props;
+
+		if ( ! isReadOnly && withFooter ) {
+			return (
+				<>
+					<TouchableWithoutFeedback
+						accessibilityLabel={ __( 'Add paragraph block' ) }
+						onPress={ () => {
+							this.addBlockToEndOfPost( paragraphBlock );
+						} }
+					>
+						<View style={ styles.blockListFooter } />
+					</TouchableWithoutFeedback>
+				</>
+			);
+		} else if ( renderFooterAppender ) {
+			return renderFooterAppender();
+		}
+		return null;
 	}
 }
 
 export default compose( [
-	withSelect( ( select, { rootClientId } ) => {
-		const {
-			getBlockCount,
-			getBlockName,
-			getBlockIndex,
-			getBlockOrder,
-			getSelectedBlock,
-			getSelectedBlockClientId,
-			isBlockSelected,
-		} = select( 'core/block-editor' );
+	withSelect(
+		( select, { rootClientId, orientation, filterInnerBlocks } ) => {
+			const {
+				getBlockCount,
+				getBlockOrder,
+				getSelectedBlockClientId,
+				isBlockInsertionPointVisible,
+				getSettings,
+				getBlockHierarchyRootClientId,
+			} = select( 'core/block-editor' );
 
-		const selectedBlockClientId = getSelectedBlockClientId();
+			const isStackedHorizontally = orientation === 'horizontal';
 
-		return {
-			blockClientIds: getBlockOrder( rootClientId ),
-			blockCount: getBlockCount( rootClientId ),
-			getBlockName,
-			isBlockSelected,
-			selectedBlock: getSelectedBlock(),
-			selectedBlockClientId,
-			selectedBlockOrder: getBlockIndex( selectedBlockClientId ),
-		};
-	} ),
+			const selectedBlockClientId = getSelectedBlockClientId();
+
+			let blockClientIds = getBlockOrder( rootClientId );
+			// Display only block which fulfill the condition in passed `filterInnerBlocks` function
+			if ( filterInnerBlocks ) {
+				blockClientIds = filterInnerBlocks( blockClientIds );
+			}
+
+			const isReadOnly = getSettings().readOnly;
+
+			const blockCount = getBlockCount( rootBlockId );
+
+			const rootBlockId = getBlockHierarchyRootClientId(
+				selectedBlockClientId
+			);
+			const hasRootInnerBlocks = !! blockCount;
+
+			const isFloatingToolbarVisible =
+				!! selectedBlockClientId && hasRootInnerBlocks;
+
+			return {
+				blockClientIds,
+				blockCount,
+				isBlockInsertionPointVisible: isBlockInsertionPointVisible(),
+				isReadOnly,
+				isRootList: rootClientId === undefined,
+				isFloatingToolbarVisible,
+				isStackedHorizontally,
+			};
+		}
+	),
 	withDispatch( ( dispatch ) => {
-		const {
-			insertBlock,
-			replaceBlock,
-			clearSelectedBlock,
-		} = dispatch( 'core/block-editor' );
+		const { insertBlock, replaceBlock, clearSelectedBlock } = dispatch(
+			'core/block-editor'
+		);
 
 		return {
 			clearSelectedBlock,
@@ -286,5 +372,65 @@ export default compose( [
 			replaceBlock,
 		};
 	} ),
+	withPreferredColorScheme,
 ] )( BlockList );
 
+class EmptyListComponent extends Component {
+	render() {
+		const {
+			shouldShowInsertionPoint,
+			rootClientId,
+			renderAppender,
+			renderFooterAppender,
+		} = this.props;
+
+		if ( renderFooterAppender ) {
+			return null;
+		}
+
+		return (
+			<View style={ styles.defaultAppender }>
+				<ReadableContentView
+					align={
+						renderAppender
+							? WIDE_ALIGNMENTS.alignments.full
+							: undefined
+					}
+				>
+					<BlockListAppender
+						rootClientId={ rootClientId }
+						renderAppender={ renderAppender }
+						showSeparator={ shouldShowInsertionPoint }
+					/>
+				</ReadableContentView>
+			</View>
+		);
+	}
+}
+
+const EmptyListComponentCompose = compose( [
+	withSelect( ( select, { rootClientId, orientation } ) => {
+		const {
+			getBlockOrder,
+			getBlockInsertionPoint,
+			isBlockInsertionPointVisible,
+		} = select( 'core/block-editor' );
+
+		const isStackedHorizontally = orientation === 'horizontal';
+		const blockClientIds = getBlockOrder( rootClientId );
+		const insertionPoint = getBlockInsertionPoint();
+		const blockInsertionPointIsVisible = isBlockInsertionPointVisible();
+		const shouldShowInsertionPoint =
+			! isStackedHorizontally &&
+			blockInsertionPointIsVisible &&
+			insertionPoint.rootClientId === rootClientId &&
+			// if list is empty, show the insertion point (via the default appender)
+			( blockClientIds.length === 0 ||
+				// or if the insertion point is right before the denoted block
+				! blockClientIds[ insertionPoint.index ] );
+
+		return {
+			shouldShowInsertionPoint,
+		};
+	} ),
+] )( EmptyListComponent );

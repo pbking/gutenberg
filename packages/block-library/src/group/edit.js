@@ -1,71 +1,47 @@
 /**
- * External dependencies
- */
-import classnames from 'classnames';
-
-/**
  * WordPress dependencies
  */
-import { withSelect } from '@wordpress/data';
-import { compose } from '@wordpress/compose';
-import { __ } from '@wordpress/i18n';
+import { useSelect } from '@wordpress/data';
 import {
-	InspectorControls,
 	InnerBlocks,
-	PanelColorSettings,
-	withColors,
+	useBlockProps,
+	__experimentalUseInnerBlocksProps as useInnerBlocksProps,
 } from '@wordpress/block-editor';
+import { __experimentalBoxControl as BoxControl } from '@wordpress/components';
+const { __Visualizer: BoxControlVisualizer } = BoxControl;
 
-function GroupEdit( {
-	className,
-	setBackgroundColor,
-	backgroundColor,
-	hasInnerBlocks,
-} ) {
-	const styles = {
-		backgroundColor: backgroundColor.color,
-	};
-
-	const classes = classnames( className, backgroundColor.class, {
-		'has-background': !! backgroundColor.color,
-	} );
+function GroupEdit( { attributes, clientId } ) {
+	const hasInnerBlocks = useSelect(
+		( select ) => {
+			const { getBlock } = select( 'core/block-editor' );
+			const block = getBlock( clientId );
+			return !! ( block && block.innerBlocks.length );
+		},
+		[ clientId ]
+	);
+	const blockProps = useBlockProps();
+	const { tagName: TagName = 'div', templateLock } = attributes;
+	const innerBlocksProps = useInnerBlocksProps(
+		{
+			className: 'wp-block-group__inner-container',
+		},
+		{
+			templateLock,
+			renderAppender: hasInnerBlocks
+				? undefined
+				: InnerBlocks.ButtonBlockAppender,
+		}
+	);
 
 	return (
-		<>
-			<InspectorControls>
-				<PanelColorSettings
-					title={ __( 'Color Settings' ) }
-					colorSettings={ [
-						{
-							value: backgroundColor.color,
-							onChange: setBackgroundColor,
-							label: __( 'Background Color' ),
-						},
-					] }
-				/>
-			</InspectorControls>
-			<div className={ classes } style={ styles }>
-				<div className="wp-block-group__inner-container">
-					<InnerBlocks
-						renderAppender={ ! hasInnerBlocks && InnerBlocks.ButtonBlockAppender }
-					/>
-				</div>
-			</div>
-		</>
+		<TagName { ...blockProps }>
+			<BoxControlVisualizer
+				values={ attributes.style?.spacing?.padding }
+				showValues={ attributes.style?.visualizers?.padding }
+			/>
+			<div { ...innerBlocksProps } />
+		</TagName>
 	);
 }
 
-export default compose( [
-	withColors( 'backgroundColor' ),
-	withSelect( ( select, { clientId } ) => {
-		const {
-			getBlock,
-		} = select( 'core/block-editor' );
-
-		const block = getBlock( clientId );
-
-		return {
-			hasInnerBlocks: !! ( block && block.innerBlocks.length ),
-		};
-	} ),
-] )( GroupEdit );
+export default GroupEdit;

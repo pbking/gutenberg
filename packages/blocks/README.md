@@ -99,7 +99,7 @@ add_action( 'enqueue_block_editor_assets', 'random_image_enqueue_block_editor_as
 
 		icon: 'format-image',
 
-		category: 'common',
+		category: 'text',
 
 		attributes: {
 			category: {
@@ -205,6 +205,21 @@ _Returns_
 
 -   `Object`: Block object.
 
+<a name="createBlocksFromInnerBlocksTemplate" href="#createBlocksFromInnerBlocksTemplate">#</a> **createBlocksFromInnerBlocksTemplate**
+
+Given an array of InnerBlocks templates or Block Objects,
+returns an array of created Blocks from them.
+It handles the case of having InnerBlocks as Blocks by
+converting them to the proper format to continue recursively.
+
+_Parameters_
+
+-   _innerBlocksOrTemplate_ `Array`: Nested blocks or InnerBlocks templates.
+
+_Returns_
+
+-   `Array<Object>`: Array of Block objects.
+
 <a name="doBlocksMatchTemplate" href="#doBlocksMatchTemplate">#</a> **doBlocksMatchTemplate**
 
 Checks whether a list of blocks matches a template by comparing the block names.
@@ -273,6 +288,19 @@ _Returns_
 
 -   `string`: The block's default class.
 
+<a name="getBlockFromExample" href="#getBlockFromExample">#</a> **getBlockFromExample**
+
+Create a block object from the example API.
+
+_Parameters_
+
+-   _name_ `string`: 
+-   _example_ `Object`: 
+
+_Returns_
+
+-   `Object`: block.
+
 <a name="getBlockMenuDefaultClassName" href="#getBlockMenuDefaultClassName">#</a> **getBlockMenuDefaultClassName**
 
 Returns the block's default menu item classname from its name.
@@ -335,13 +363,26 @@ _Returns_
 
 -   `Array`: Block settings.
 
+<a name="getBlockVariations" href="#getBlockVariations">#</a> **getBlockVariations**
+
+Returns an array with the variations of a given block type.
+
+_Parameters_
+
+-   _blockName_ `string`: Name of block (example: “core/columns”).
+-   _scope_ `[WPBlockVariationScope]`: Block variation scope name.
+
+_Returns_
+
+-   `(Array<WPBlockVariation>|void)`: Block variations.
+
 <a name="getCategories" href="#getCategories">#</a> **getCategories**
 
 Returns all the block categories.
 
 _Returns_
 
--   `Array<Object>`: Block categories.
+-   `Array<WPBlockCategory>`: Block categories.
 
 <a name="getChildBlockNames" href="#getChildBlockNames">#</a> **getChildBlockNames**
 
@@ -382,15 +423,7 @@ _Returns_
 
 <a name="getPhrasingContentSchema" href="#getPhrasingContentSchema">#</a> **getPhrasingContentSchema**
 
-Get schema of possible paths for phrasing content.
-
-_Related_
-
--   <https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Content_categories#Phrasing_content>
-
-_Returns_
-
--   `Object`: Schema.
+Undocumented declaration.
 
 <a name="getPossibleBlockTransformations" href="#getPossibleBlockTransformations">#</a> **getPossibleBlockTransformations**
 
@@ -548,11 +581,11 @@ in the codebase.
 
 _Parameters_
 
--   _icon_ `(Object|string|WPElement)`: Slug of the Dashicon to be shown as the icon for the block in the inserter, or element or an object describing the icon.
+-   _icon_ `WPBlockTypeIconRender`: Render behavior of a block type icon; one of a Dashicon slug, an element, or a component.
 
 _Returns_
 
--   `Object`: Object describing the icon.
+-   `WPBlockTypeIconDescriptor`: Object describing the icon.
 
 <a name="parse" href="#parse">#</a> **parse**
 
@@ -586,11 +619,12 @@ Converts an HTML string to known blocks. Strips everything else.
 
 _Parameters_
 
+-   _options_ `Object`: 
 -   _options.HTML_ `[string]`: The HTML to convert.
 -   _options.plainText_ `[string]`: Plain text version.
 -   _options.mode_ `[string]`: Handle content as blocks or inline content. _ 'AUTO': Decide based on the content passed. _ 'INLINE': Always handle as inline content, and return string. \* 'BLOCKS': Always handle as blocks, and return array of blocks.
 -   _options.tagName_ `[Array]`: The tag into which content will be inserted.
--   _options.canUserUseUnfilteredHTML_ `[boolean]`: Whether or not the user can use unfiltered HTML.
+-   _options.preserveWhiteSpace_ `[boolean]`: Whether or not to preserve consequent white space.
 
 _Returns_
 
@@ -602,11 +636,23 @@ Converts an HTML string to known blocks.
 
 _Parameters_
 
+-   _$1_ `Object`: 
 -   _$1.HTML_ `string`: The HTML to convert.
 
 _Returns_
 
 -   `Array`: A list of blocks.
+
+<a name="registerBlockCollection" href="#registerBlockCollection">#</a> **registerBlockCollection**
+
+Registers a new block collection to group blocks in the same namespace in the inserter.
+
+_Parameters_
+
+-   _namespace_ `string`: The namespace to group blocks by in the inserter; corresponds to the block namespace.
+-   _settings_ `Object`: The block collection settings.
+-   _settings.title_ `string`: The title to display in the block inserter.
+-   _settings.icon_ `[Object]`: The icon to display in the block inserter.
 
 <a name="registerBlockStyle" href="#registerBlockStyle">#</a> **registerBlockStyle**
 
@@ -632,6 +678,15 @@ _Returns_
 
 -   `?WPBlock`: The block, if it has been successfully registered; otherwise `undefined`.
 
+<a name="registerBlockVariation" href="#registerBlockVariation">#</a> **registerBlockVariation**
+
+Registers a new block variation for the given block type.
+
+_Parameters_
+
+-   _blockName_ `string`: Name of the block (example: “core/columns”).
+-   _variation_ `WPBlockVariation`: Object describing a block variation.
+
 <a name="serialize" href="#serialize">#</a> **serialize**
 
 Takes a block or set of blocks and returns the serialized post content.
@@ -639,6 +694,7 @@ Takes a block or set of blocks and returns the serialized post content.
 _Parameters_
 
 -   _blocks_ `Array`: Block(s) to serialize.
+-   _options_ `WPBlockSerializationOptions`: Serialization options.
 
 _Returns_
 
@@ -650,7 +706,7 @@ Sets the block categories.
 
 _Parameters_
 
--   _categories_ `Array<Object>`: Block categories.
+-   _categories_ `Array<WPBlockCategory>`: Block categories.
 
 <a name="setDefaultBlockName" href="#setDefaultBlockName">#</a> **setDefaultBlockName**
 
@@ -683,6 +739,18 @@ Assigns name of block handling unregistered block types.
 _Parameters_
 
 -   _blockName_ `string`: Block name.
+
+<a name="store" href="#store">#</a> **store**
+
+Store definition for the blocks namespace.
+
+_Related_
+
+-   <https://github.com/WordPress/gutenberg/blob/master/packages/data/README.md#createReduxStore>
+
+_Type_
+
+-   `Object` 
 
 <a name="switchToBlockType" href="#switchToBlockType">#</a> **switchToBlockType**
 
@@ -736,6 +804,15 @@ _Returns_
 
 -   `?WPBlock`: The previous block value, if it has been successfully unregistered; otherwise `undefined`.
 
+<a name="unregisterBlockVariation" href="#unregisterBlockVariation">#</a> **unregisterBlockVariation**
+
+Unregisters a block variation defined for the given block type.
+
+_Parameters_
+
+-   _blockName_ `string`: Name of the block (example: “core/columns”).
+-   _variationName_ `string`: Name of the variation defined for the block.
+
 <a name="updateCategory" href="#updateCategory">#</a> **updateCategory**
 
 Updates a category.
@@ -743,7 +820,7 @@ Updates a category.
 _Parameters_
 
 -   _slug_ `string`: Block category slug.
--   _category_ `Object`: Object containing the category properties that should be updated.
+-   _category_ `WPBlockCategory`: Object containing the category properties that should be updated.
 
 <a name="withBlockContentContext" href="#withBlockContentContext">#</a> **withBlockContentContext**
 
@@ -752,7 +829,7 @@ wrapped component.
 
 _Returns_
 
--   `Component`: Enhanced component with injected BlockContent as prop.
+-   `WPComponent`: Enhanced component with injected BlockContent as prop.
 
 
 <!-- END TOKEN(Autogenerated API docs) -->

@@ -1,40 +1,29 @@
 /**
  * WordPress dependencies
  */
-import { __ } from '@wordpress/i18n';
-import {
-	navigateRegions,
-	Popover,
-	SlotFillProvider,
-} from '@wordpress/components';
+import { Popover } from '@wordpress/components';
+import { PluginArea } from '@wordpress/plugins';
 
 /**
  * Internal dependencies
  */
-import Header from '../header';
+import WidgetAreasBlockEditorProvider from '../widget-areas-block-editor-provider';
 import Sidebar from '../sidebar';
-import WidgetAreas from '../widget-areas';
-import Notices from '../notices';
+import Interface from './interface';
+import UnsavedChangesWarning from './unsaved-changes-warning';
 
 function Layout( { blockEditorSettings } ) {
 	return (
-		<SlotFillProvider>
-			<Header />
+		<WidgetAreasBlockEditorProvider
+			blockEditorSettings={ blockEditorSettings }
+		>
+			<Interface blockEditorSettings={ blockEditorSettings } />
 			<Sidebar />
-			<Notices />
-			<div
-				className="edit-widgets-layout__content"
-				role="region"
-				aria-label={ __( 'Widgets screen content' ) }
-				tabIndex="-1"
-			>
-				<WidgetAreas
-					blockEditorSettings={ blockEditorSettings }
-				/>
-			</div>
 			<Popover.Slot />
-		</SlotFillProvider>
+			<PluginArea />
+			<UnsavedChangesWarning />
+		</WidgetAreasBlockEditorProvider>
 	);
 }
 
-export default navigateRegions( Layout );
+export default Layout;

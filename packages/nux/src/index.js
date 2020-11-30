@@ -1,6 +1,11 @@
 /**
- * Internal dependencies
+ * WordPress dependencies
  */
-import './store';
+import deprecated from '@wordpress/deprecated';
 
+export { store } from './store';
 export { default as DotTip } from './components/dot-tip';
+
+deprecated( 'wp.nux', {
+	hint: 'wp.components.Guide can be used to show a user guide.',
+} );

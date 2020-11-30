@@ -7,42 +7,71 @@ import {
 } from '@wordpress/editor';
 import {
 	WritingFlow,
-	ObserveTyping,
 	BlockList,
-	CopyHandler,
-	BlockSelectionClearer,
-	MultiSelectScrollIntoView,
+	__unstableUseBlockSelectionClearer as useBlockSelectionClearer,
+	__unstableUseTypewriter as useTypewriter,
+	__unstableUseClipboardHandler as useClipboardHandler,
+	__unstableUseTypingObserver as useTypingObserver,
+	__unstableUseScrollMultiSelectionIntoView as useScrollMultiSelectionIntoView,
 	__experimentalBlockSettingsMenuFirstItem,
-	__experimentalBlockSettingsMenuPluginsExtension,
+	__experimentalUseResizeCanvas as useResizeCanvas,
+	__unstableUseCanvasClickRedirect as useCanvasClickRedirect,
 } from '@wordpress/block-editor';
+import { Popover } from '@wordpress/components';
+import { useRef } from '@wordpress/element';
 
 /**
  * Internal dependencies
  */
 import BlockInspectorButton from './block-inspector-button';
-import PluginBlockSettingsMenuGroup from '../block-settings-menu/plugin-block-settings-menu-group';
+import { useSelect } from '@wordpress/data';
 
-function VisualEditor() {
+export default function VisualEditor() {
+	const ref = useRef();
+	const deviceType = useSelect( ( select ) => {
+		return select( 'core/edit-post' ).__experimentalGetPreviewDeviceType();
+	}, [] );
+	const hasMetaBoxes = useSelect(
+		( select ) => select( 'core/edit-post' ).hasMetaBoxes(),
+		[]
+	);
+	const desktopCanvasStyles = {
+		height: '100%',
+		// Add a constant padding for the typewritter effect. When typing at the
+		// bottom, there needs to be room to scroll up.
+		paddingBottom: hasMetaBoxes ? null : '40vh',
+	};
+	const resizedCanvasStyles = useResizeCanvas( deviceType );
+
+	useScrollMultiSelectionIntoView( ref );
+	useBlockSelectionClearer( ref );
+	useTypewriter( ref );
+	useClipboardHandler( ref );
+	useTypingObserver( ref );
+	useCanvasClickRedirect( ref );
+
 	return (
-		<BlockSelectionClearer className="edit-post-visual-editor editor-styles-wrapper">
+		<div className="edit-post-visual-editor">
 			<VisualEditorGlobalKeyboardShortcuts />
-			<MultiSelectScrollIntoView />
-			<WritingFlow>
-				<ObserveTyping>
-					<CopyHandler>
+			<Popover.Slot name="block-toolbar" />
+			<div
+				ref={ ref }
+				className="editor-styles-wrapper"
+				tabIndex="-1"
+				style={ resizedCanvasStyles || desktopCanvasStyles }
+			>
+				<WritingFlow>
+					<div className="edit-post-visual-editor__post-title-wrapper">
 						<PostTitle />
-						<BlockList />
-					</CopyHandler>
-				</ObserveTyping>
-			</WritingFlow>
+					</div>
+					<BlockList />
+				</WritingFlow>
+			</div>
 			<__experimentalBlockSettingsMenuFirstItem>
-				{ ( { onClose } ) => <BlockInspectorButton onClick={ onClose } /> }
+				{ ( { onClose } ) => (
+					<BlockInspectorButton onClick={ onClose } />
+				) }
 			</__experimentalBlockSettingsMenuFirstItem>
-			<__experimentalBlockSettingsMenuPluginsExtension>
-				{ ( { clientIds, onClose } ) => <PluginBlockSettingsMenuGroup.Slot fillProps={ { clientIds, onClose } } /> }
-			</__experimentalBlockSettingsMenuPluginsExtension>
-		</BlockSelectionClearer>
+		</div>
 	);
 }
-
-export default VisualEditor;

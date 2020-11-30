@@ -1,23 +1,26 @@
 /**
  * External dependencies
  */
-import RNReactNativeGutenbergBridge, {
-	subscribeParentGetHtml,
-	subscribeParentToggleHTMLMode,
-	subscribeUpdateHtml,
-	subscribeSetFocusOnTitle,
-	subscribeSetTitle,
-	sendNativeEditorDidLayout,
-} from 'react-native-gutenberg-bridge';
-import { isEmpty } from 'lodash';
+import memize from 'memize';
+import { size, map, without } from 'lodash';
+import { I18nManager } from 'react-native';
 
 /**
  * WordPress dependencies
  */
 import { Component } from '@wordpress/element';
-import { parse, serialize, getUnregisteredTypeHandlerName } from '@wordpress/blocks';
+import { EditorProvider } from '@wordpress/editor';
+import {
+	parse,
+	serialize,
+	rawHandler,
+	store as blocksStore,
+} from '@wordpress/blocks';
 import { withDispatch, withSelect } from '@wordpress/data';
 import { compose } from '@wordpress/compose';
+import { subscribeSetFocusOnTitle } from '@wordpress/react-native-bridge';
+import { SlotFillProvider } from '@wordpress/components';
+import { Preview } from '@wordpress/block-editor';
 
 /**
  * Internal dependencies
@@ -28,117 +31,69 @@ class Editor extends Component {
 	constructor( props ) {
 		super( ...arguments );
 
-		this.setTitleRef = this.setTitleRef.bind( this );
-
-		// TODO: use EditorProvider instead
-		this.post = props.post || {
-			id: 1,
-			title: {
-				raw: props.initialTitle,
-			},
-			content: {
-				raw: props.initialHtml || '',
-			},
-			type: 'draft',
-		};
-
-		props.setupEditor( this.post );
-
-		// make sure the post content is in sync with gutenberg store
-		// to avoid marking the post as modified when simply loaded
-		// For now, let's assume: serialize( parse( html ) ) !== html
-		this.post.content.raw = serialize( props.getEditorBlocks() );
-
 		if ( props.initialHtmlModeEnabled && props.mode === 'visual' ) {
 			// enable html mode if the initial mode the parent wants it but we're not already in it
-			this.toggleMode();
+			this.props.switchEditorMode( 'text' );
 		}
+
+		this.getEditorSettings = memize( this.getEditorSettings, {
+			maxSize: 1,
+		} );
+
+		this.setTitleRef = this.setTitleRef.bind( this );
+	}
+
+	getEditorSettings(
+		settings,
+		hasFixedToolbar,
+		focusMode,
+		hiddenBlockTypes,
+		blockTypes
+	) {
+		settings = {
+			...settings,
+			isRTL: I18nManager.isRTL,
+			hasFixedToolbar,
+			focusMode,
+		};
+
+		// Omit hidden block types if exists and non-empty.
+		if ( size( hiddenBlockTypes ) > 0 ) {
+			if ( settings.allowedBlockTypes === undefined ) {
+				// if no specific flags for allowedBlockTypes are set, assume `true`
+				// meaning allow all block types
+				settings.allowedBlockTypes = true;
+			}
+			// Defer to passed setting for `allowedBlockTypes` if provided as
+			// anything other than `true` (where `true` is equivalent to allow
+			// all block types).
+			const defaultAllowedBlockTypes =
+				true === settings.allowedBlockTypes
+					? map( blockTypes, 'name' )
+					: settings.allowedBlockTypes || [];
+
+			settings.allowedBlockTypes = without(
+				defaultAllowedBlockTypes,
+				...hiddenBlockTypes
+			);
+		}
+
+		return settings;
 	}
 
 	componentDidMount() {
-		this.subscriptionParentGetHtml = subscribeParentGetHtml( () => {
-			this.serializeToNativeAction();
-		} );
-
-		this.subscriptionParentToggleHTMLMode = subscribeParentToggleHTMLMode( () => {
-			this.toggleMode();
-		} );
-
-		this.subscriptionParentSetTitle = subscribeSetTitle( ( payload ) => {
-			this.props.editTitle( payload.title );
-		} );
-
-		this.subscriptionParentUpdateHtml = subscribeUpdateHtml( ( payload ) => {
-			this.updateHtmlAction( payload.html );
-		} );
-
-		this.subscriptionParentSetFocusOnTitle = subscribeSetFocusOnTitle( () => {
-			if ( this.postTitleRef ) {
-				this.postTitleRef.focus();
+		this.subscriptionParentSetFocusOnTitle = subscribeSetFocusOnTitle(
+			() => {
+				if ( this.postTitleRef ) {
+					this.postTitleRef.focus();
+				}
 			}
-		} );
+		);
 	}
 
 	componentWillUnmount() {
-		if ( this.subscriptionParentGetHtml ) {
-			this.subscriptionParentGetHtml.remove();
-		}
-
-		if ( this.subscriptionParentToggleHTMLMode ) {
-			this.subscriptionParentToggleHTMLMode.remove();
-		}
-
-		if ( this.subscriptionParentSetTitle ) {
-			this.subscriptionParentSetTitle.remove();
-		}
-
-		if ( this.subscriptionParentUpdateHtml ) {
-			this.subscriptionParentUpdateHtml.remove();
-		}
-
 		if ( this.subscriptionParentSetFocusOnTitle ) {
 			this.subscriptionParentSetFocusOnTitle.remove();
-		}
-	}
-
-	serializeToNativeAction() {
-		if ( this.props.mode === 'text' ) {
-			this.updateHtmlAction( this.props.getEditedPostContent() );
-		}
-
-		const html = serialize( this.props.getEditorBlocks() );
-		const title = this.props.getEditedPostAttribute( 'title' );
-
-		const hasChanges = title !== this.post.title.raw || html !== this.post.content.raw;
-
-		RNReactNativeGutenbergBridge.provideToNative_Html( html, title, hasChanges );
-
-		if ( hasChanges ) {
-			this.post.title.raw = title;
-			this.post.content.raw = html;
-		}
-	}
-
-	updateHtmlAction( html ) {
-		const parsed = parse( html );
-		this.props.resetEditorBlocksWithoutUndoLevel( parsed );
-	}
-
-	toggleMode() {
-		const { mode, switchMode } = this.props;
-		// refresh html content first
-		this.serializeToNativeAction();
-		switchMode( mode === 'visual' ? 'text' : 'visual' );
-	}
-
-	componentDidUpdate( prevProps ) {
-		if ( ! prevProps.isReady && this.props.isReady ) {
-			const blocks = this.props.getEditorBlocks();
-			const isUnsupportedBlock = ( { name } ) => name === getUnregisteredTypeHandlerName();
-			const unsupportedBlocks = blocks.filter( isUnsupportedBlock );
-			const hasUnsupportedBlocks = ! isEmpty( unsupportedBlocks );
-
-			RNReactNativeGutenbergBridge.editorDidMount( hasUnsupportedBlocks );
 		}
 	}
 
@@ -146,12 +101,65 @@ class Editor extends Component {
 		this.postTitleRef = titleRef;
 	}
 
+	editorMode( initialHtml, editorMode ) {
+		if ( editorMode === 'preview' ) {
+			return <Preview blocks={ rawHandler( { HTML: initialHtml } ) } />;
+		}
+		return <Layout setTitleRef={ this.setTitleRef } />;
+	}
+
 	render() {
+		const {
+			settings,
+			hasFixedToolbar,
+			focusMode,
+			initialEdits,
+			hiddenBlockTypes,
+			blockTypes,
+			post,
+			postId,
+			postType,
+			initialHtml,
+			editorMode,
+			...props
+		} = this.props;
+
+		const editorSettings = this.getEditorSettings(
+			settings,
+			hasFixedToolbar,
+			focusMode,
+			hiddenBlockTypes,
+			blockTypes
+		);
+
+		const normalizedPost = post || {
+			id: postId,
+			title: {
+				raw: props.initialTitle || '',
+			},
+			content: {
+				// make sure the post content is in sync with gutenberg store
+				// to avoid marking the post as modified when simply loaded
+				// For now, let's assume: serialize( parse( html ) ) !== html
+				raw: serialize( parse( initialHtml || '' ) ),
+			},
+			type: postType,
+			status: 'draft',
+			meta: [],
+		};
+
 		return (
-			<Layout
-				setTitleRef={ this.setTitleRef }
-				onNativeEditorDidLayout={ sendNativeEditorDidLayout }
-			/>
+			<SlotFillProvider>
+				<EditorProvider
+					settings={ editorSettings }
+					post={ normalizedPost }
+					initialEdits={ initialEdits }
+					useSubRegistry={ false }
+					{ ...props }
+				>
+					{ this.editorMode( initialHtml, editorMode ) }
+				</EditorProvider>
+			</SlotFillProvider>
 		);
 	}
 }
@@ -159,46 +167,27 @@ class Editor extends Component {
 export default compose( [
 	withSelect( ( select ) => {
 		const {
-			__unstableIsEditorReady: isEditorReady,
-			getEditorBlocks,
-			getEditedPostAttribute,
-			getEditedPostContent,
-		} = select( 'core/editor' );
-		const {
+			isFeatureActive,
 			getEditorMode,
+			getPreference,
+			__experimentalGetPreviewDeviceType,
 		} = select( 'core/edit-post' );
+		const { getBlockTypes } = select( blocksStore );
 
 		return {
+			hasFixedToolbar:
+				isFeatureActive( 'fixedToolbar' ) ||
+				__experimentalGetPreviewDeviceType() !== 'Desktop',
+			focusMode: isFeatureActive( 'focusMode' ),
 			mode: getEditorMode(),
-			isReady: isEditorReady(),
-			getEditorBlocks,
-			getEditedPostAttribute,
-			getEditedPostContent,
+			hiddenBlockTypes: getPreference( 'hiddenBlockTypes' ),
+			blockTypes: getBlockTypes(),
 		};
 	} ),
 	withDispatch( ( dispatch ) => {
-		const {
-			editPost,
-			setupEditor,
-			resetEditorBlocks,
-		} = dispatch( 'core/editor' );
-		const {
-			switchEditorMode,
-		} = dispatch( 'core/edit-post' );
-
+		const { switchEditorMode } = dispatch( 'core/edit-post' );
 		return {
-			editTitle( title ) {
-				editPost( { title } );
-			},
-			resetEditorBlocksWithoutUndoLevel( blocks ) {
-				resetEditorBlocks( blocks, {
-					__unstableShouldCreateUndoLevel: false,
-				} );
-			},
-			setupEditor,
-			switchMode( mode ) {
-				switchEditorMode( mode );
-			},
+			switchEditorMode,
 		};
 	} ),
 ] )( Editor );

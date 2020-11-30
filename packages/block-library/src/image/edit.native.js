@@ -2,75 +2,101 @@
  * External dependencies
  */
 import React from 'react';
-import { View, ImageBackground, Text, TouchableWithoutFeedback, Dimensions } from 'react-native';
-import {
-	requestMediaImport,
-	mediaUploadSync,
-	requestImageFailedRetryDialog,
-	requestImageUploadCancelDialog,
-} from 'react-native-gutenberg-bridge';
-import { isEmpty } from 'lodash';
+import { View, TouchableWithoutFeedback } from 'react-native';
+import { isEmpty, get, find, map } from 'lodash';
 
 /**
  * WordPress dependencies
  */
 import {
-	BottomSheet,
+	requestMediaImport,
+	mediaUploadSync,
+	requestImageFailedRetryDialog,
+	requestImageUploadCancelDialog,
+	requestImageFullscreenPreview,
+} from '@wordpress/react-native-bridge';
+import {
+	CycleSelectControl,
 	Icon,
-	Toolbar,
+	PanelBody,
+	TextControl,
+	ToggleControl,
 	ToolbarButton,
+	ToolbarGroup,
+	Image,
+	WIDE_ALIGNMENTS,
 } from '@wordpress/components';
 import {
+	BlockCaption,
 	MediaPlaceholder,
 	MediaUpload,
+	MediaUploadProgress,
 	MEDIA_TYPE_IMAGE,
-	RichText,
 	BlockControls,
 	InspectorControls,
+	BlockAlignmentToolbar,
+	BlockStyles,
 } from '@wordpress/block-editor';
 import { __, sprintf } from '@wordpress/i18n';
-import { isURL } from '@wordpress/url';
+import { getProtocol, hasQueryArg } from '@wordpress/url';
 import { doAction, hasAction } from '@wordpress/hooks';
+import { compose, withPreferredColorScheme } from '@wordpress/compose';
+import { withSelect } from '@wordpress/data';
+import {
+	external,
+	link,
+	image as placeholderIcon,
+	textColor,
+	replace,
+	expand,
+} from '@wordpress/icons';
 
 /**
  * Internal dependencies
  */
 import styles from './styles.scss';
-import MediaUploadProgress from './media-upload-progress';
-import SvgIcon from './icon';
-import SvgIconRetry from './icon-retry';
+import { getUpdatedLinkTargetSettings } from './utils';
 
-const LINK_DESTINATION_CUSTOM = 'custom';
-const LINK_DESTINATION_NONE = 'none';
+import { LINK_DESTINATION_CUSTOM, DEFAULT_SIZE_SLUG } from './constants';
 
-// Default Image ratio 4:3
-const IMAGE_ASPECT_RATIO = 4 / 3;
+const getUrlForSlug = ( image, { sizeSlug } ) => {
+	return get( image, [ 'media_details', 'sizes', sizeSlug, 'source_url' ] );
+};
 
-class ImageEdit extends React.Component {
+export class ImageEdit extends React.Component {
 	constructor( props ) {
 		super( props );
 
 		this.state = {
-			showSettings: false,
 			isCaptionSelected: false,
 		};
 
-		this.finishMediaUploadWithSuccess = this.finishMediaUploadWithSuccess.bind( this );
-		this.finishMediaUploadWithFailure = this.finishMediaUploadWithFailure.bind( this );
+		this.finishMediaUploadWithSuccess = this.finishMediaUploadWithSuccess.bind(
+			this
+		);
+		this.finishMediaUploadWithFailure = this.finishMediaUploadWithFailure.bind(
+			this
+		);
 		this.mediaUploadStateReset = this.mediaUploadStateReset.bind( this );
-		this.onSelectMediaUploadOption = this.onSelectMediaUploadOption.bind( this );
+		this.onSelectMediaUploadOption = this.onSelectMediaUploadOption.bind(
+			this
+		);
 		this.updateMediaProgress = this.updateMediaProgress.bind( this );
 		this.updateAlt = this.updateAlt.bind( this );
 		this.updateImageURL = this.updateImageURL.bind( this );
 		this.onSetLinkDestination = this.onSetLinkDestination.bind( this );
+		this.onSetNewTab = this.onSetNewTab.bind( this );
+		this.onSetSizeSlug = this.onSetSizeSlug.bind( this );
 		this.onImagePressed = this.onImagePressed.bind( this );
-		this.onClearSettings = this.onClearSettings.bind( this );
 		this.onFocusCaption = this.onFocusCaption.bind( this );
+		this.updateAlignment = this.updateAlignment.bind( this );
+		this.accessibilityLabelCreator = this.accessibilityLabelCreator.bind(
+			this
+		);
 	}
 
 	componentDidMount() {
 		const { attributes, setAttributes } = this.props;
-
 		// This will warn when we have `id` defined, while `url` is undefined.
 		// This may help track this issue: https://github.com/wordpress-mobile/WordPress-Android/issues/9768
 		// where a cancelled image upload was resulting in a subsequent crash.
@@ -79,43 +105,87 @@ class ImageEdit extends React.Component {
 			console.warn( 'Attributes has id with no url.' );
 		}
 
-		if ( attributes.id && attributes.url && ! isURL( attributes.url ) ) {
-			if ( attributes.url.indexOf( 'file:' ) === 0 ) {
-				requestMediaImport( attributes.url, ( mediaId, mediaUri ) => {
-					if ( mediaUri ) {
-						setAttributes( { url: mediaUri, id: mediaId } );
-					}
-				} );
-			}
+		// Detect any pasted image and start an upload
+		if (
+			! attributes.id &&
+			attributes.url &&
+			getProtocol( attributes.url ) === 'file:'
+		) {
+			requestMediaImport( attributes.url, ( id, url ) => {
+				if ( url ) {
+					setAttributes( { id, url } );
+				}
+			} );
+		}
+
+		// Make sure we mark any temporary images as failed if they failed while
+		// the editor wasn't open
+		if (
+			attributes.id &&
+			attributes.url &&
+			getProtocol( attributes.url ) === 'file:'
+		) {
 			mediaUploadSync();
 		}
 	}
 
 	componentWillUnmount() {
 		// this action will only exist if the user pressed the trash button on the block holder
-		if ( hasAction( 'blocks.onRemoveBlockCheckUpload' ) && this.state.isUploadInProgress ) {
-			doAction( 'blocks.onRemoveBlockCheckUpload', this.props.attributes.id );
+		if (
+			hasAction( 'blocks.onRemoveBlockCheckUpload' ) &&
+			this.state.isUploadInProgress
+		) {
+			doAction(
+				'blocks.onRemoveBlockCheckUpload',
+				this.props.attributes.id
+			);
 		}
 	}
 
-	componentWillReceiveProps( nextProps ) {
+	componentDidUpdate( previousProps ) {
+		if ( ! previousProps.image && this.props.image ) {
+			const { image, attributes } = this.props;
+			const url = getUrlForSlug( image, attributes ) || image.source_url;
+			this.props.setAttributes( { url } );
+		}
+	}
+
+	static getDerivedStateFromProps( props, state ) {
 		// Avoid a UI flicker in the toolbar by insuring that isCaptionSelected
 		// is updated immediately any time the isSelected prop becomes false
-		this.setState( ( state ) => ( {
-			isCaptionSelected: nextProps.isSelected && state.isCaptionSelected,
-		} ) );
+		return {
+			isCaptionSelected: props.isSelected && state.isCaptionSelected,
+		};
+	}
+
+	accessibilityLabelCreator( caption ) {
+		return isEmpty( caption )
+			? /* translators: accessibility text. Empty image caption. */
+			  'Image caption. Empty'
+			: sprintf(
+					/* translators: accessibility text. %s: image caption. */
+					__( 'Image caption. %s' ),
+					caption
+			  );
 	}
 
 	onImagePressed() {
-		const { attributes } = this.props;
+		const { attributes, image } = this.props;
 
 		if ( this.state.isUploadInProgress ) {
 			requestImageUploadCancelDialog( attributes.id );
-		} else if ( attributes.id && ! isURL( attributes.url ) ) {
+		} else if (
+			attributes.id &&
+			getProtocol( attributes.url ) === 'file:'
+		) {
 			requestImageFailedRetryDialog( attributes.id );
+		} else if ( ! this.state.isCaptionSelected ) {
+			requestImageFullscreenPreview(
+				attributes.url,
+				image && image.source_url
+			);
 		}
 
-		this._caption.blur();
 		this.setState( {
 			isCaptionSelected: false,
 		} );
@@ -158,7 +228,23 @@ class ImageEdit extends React.Component {
 	}
 
 	updateImageURL( url ) {
-		this.props.setAttributes( { url, width: undefined, height: undefined } );
+		this.props.setAttributes( {
+			url,
+			width: undefined,
+			height: undefined,
+		} );
+	}
+
+	updateAlignment( nextAlign ) {
+		const extraUpdatedAttributes = Object.values(
+			WIDE_ALIGNMENTS.alignments
+		).includes( nextAlign )
+			? { width: undefined, height: undefined }
+			: {};
+		this.props.setAttributes( {
+			...extraUpdatedAttributes,
+			align: nextAlign,
+		} );
 	}
 
 	onSetLinkDestination( href ) {
@@ -168,17 +254,56 @@ class ImageEdit extends React.Component {
 		} );
 	}
 
-	onClearSettings() {
+	onSetNewTab( value ) {
+		const updatedLinkTarget = getUpdatedLinkTargetSettings(
+			value,
+			this.props.attributes
+		);
+		this.props.setAttributes( updatedLinkTarget );
+	}
+
+	onSetSizeSlug( sizeSlug ) {
+		const { image } = this.props;
+
+		const url = getUrlForSlug( image, { sizeSlug } );
+		if ( ! url ) {
+			return null;
+		}
+
 		this.props.setAttributes( {
-			alt: '',
-			linkDestination: LINK_DESTINATION_NONE,
-			href: undefined,
+			url,
+			width: undefined,
+			height: undefined,
+			sizeSlug,
 		} );
 	}
 
-	onSelectMediaUploadOption( mediaId, mediaUrl ) {
-		const { setAttributes } = this.props;
-		setAttributes( { url: mediaUrl, id: mediaId } );
+	onSelectMediaUploadOption( media ) {
+		const { id, url } = this.props.attributes;
+
+		const mediaAttributes = {
+			id: media.id,
+			url: media.url,
+			caption: media.caption,
+		};
+
+		let additionalAttributes;
+		// Reset the dimension attributes if changing to a different image.
+		if ( ! media.id || media.id !== id ) {
+			additionalAttributes = {
+				width: undefined,
+				height: undefined,
+				sizeSlug: DEFAULT_SIZE_SLUG,
+			};
+		} else {
+			// Keep the same url when selecting the same file, so "Image Size" option is not changed.
+			additionalAttributes = { url };
+		}
+
+		this.props.setAttributes( {
+			...mediaAttributes,
+			...additionalAttributes,
+		} );
 	}
 
 	onFocusCaption() {
@@ -192,192 +317,213 @@ class ImageEdit extends React.Component {
 		}
 	}
 
-	getIcon( isRetryIcon ) {
-		if ( isRetryIcon ) {
-			return <Icon icon={ SvgIconRetry } { ...styles.iconRetry } />;
-		}
+	getPlaceholderIcon() {
+		return (
+			<Icon
+				icon={ placeholderIcon }
+				{ ...this.props.getStylesFromColorScheme(
+					styles.iconPlaceholder,
+					styles.iconPlaceholderDark
+				) }
+			/>
+		);
+	}
 
-		return <Icon icon={ SvgIcon } { ...styles.icon } />;
+	getWidth() {
+		const { attributes } = this.props;
+		const { align, width } = attributes;
+
+		return Object.values( WIDE_ALIGNMENTS.alignments ).includes( align )
+			? '100%'
+			: width;
 	}
 
 	render() {
-		const { attributes, isSelected, setAttributes } = this.props;
-		const { url, caption, height, width, alt, href, id } = attributes;
+		const { isCaptionSelected } = this.state;
+		const {
+			attributes,
+			isSelected,
+			image,
+			imageSizes,
+			clientId,
+		} = this.props;
+		const {
+			align,
+			url,
+			alt,
+			href,
+			id,
+			linkTarget,
+			sizeSlug,
+			className,
+		} = attributes;
 
-		const onImageSettingsButtonPressed = () => {
-			this.setState( { showSettings: true } );
-		};
-
-		const onImageSettingsClose = () => {
-			this.setState( { showSettings: false } );
-		};
+		const sizeOptions = map( imageSizes, ( { name, slug } ) => ( {
+			value: slug,
+			name,
+		} ) );
+		const sizeOptionsValid = find( sizeOptions, [
+			'value',
+			DEFAULT_SIZE_SLUG,
+		] );
 
 		const getToolbarEditButton = ( open ) => (
 			<BlockControls>
-				<Toolbar>
+				<ToolbarGroup>
 					<ToolbarButton
 						title={ __( 'Edit image' ) }
-						icon="edit"
+						icon={ replace }
 						onClick={ open }
 					/>
-				</Toolbar>
+				</ToolbarGroup>
+				<BlockAlignmentToolbar
+					value={ align }
+					onChange={ this.updateAlignment }
+				/>
 			</BlockControls>
 		);
 
 		const getInspectorControls = () => (
-			<BottomSheet
-				isVisible={ this.state.showSettings }
-				onClose={ onImageSettingsClose }
-				hideHeader
-			>
-				<BottomSheet.Cell
-					icon={ 'admin-links' }
-					label={ __( 'Link To' ) }
-					value={ href || '' }
-					valuePlaceholder={ __( 'Add URL' ) }
-					onChangeValue={ this.onSetLinkDestination }
-					autoCapitalize="none"
-					autoCorrect={ false }
-					keyboardType="url"
-				/>
-				<BottomSheet.Cell
-					icon={ 'editor-textcolor' }
-					label={ __( 'Alt Text' ) }
-					value={ alt || '' }
-					valuePlaceholder={ __( 'None' ) }
-					separatorType={ 'fullWidth' }
-					onChangeValue={ this.updateAlt }
-				/>
-				<BottomSheet.Cell
-					label={ __( 'Clear All Settings' ) }
-					labelStyle={ styles.clearSettingsButton }
-					separatorType={ 'none' }
-					onPress={ this.onClearSettings }
-				/>
-			</BottomSheet>
+			<InspectorControls>
+				<PanelBody title={ __( 'Image settings' ) } />
+				<PanelBody style={ styles.panelBody }>
+					{ image && (
+						<BlockStyles clientId={ clientId } url={ url } />
+					) }
+				</PanelBody>
+				<PanelBody>
+					<TextControl
+						icon={ link }
+						label={ __( 'Link To' ) }
+						value={ href || '' }
+						valuePlaceholder={ __( 'Add URL' ) }
+						onChange={ this.onSetLinkDestination }
+						autoCapitalize="none"
+						autoCorrect={ false }
+						keyboardType="url"
+					/>
+					<ToggleControl
+						icon={ external }
+						label={ __( 'Open in new tab' ) }
+						checked={ linkTarget === '_blank' }
+						onChange={ this.onSetNewTab }
+					/>
+					{ image && sizeOptionsValid && (
+						<CycleSelectControl
+							icon={ expand }
+							label={ __( 'Size' ) }
+							value={ sizeSlug || DEFAULT_SIZE_SLUG }
+							onChangeValue={ ( newValue ) =>
+								this.onSetSizeSlug( newValue )
+							}
+							options={ sizeOptions }
+						/>
+					) }
+					<TextControl
+						icon={ textColor }
+						label={ __( 'Alt Text' ) }
+						value={ alt || '' }
+						valuePlaceholder={ __( 'None' ) }
+						onChangeValue={ this.updateAlt }
+					/>
+				</PanelBody>
+			</InspectorControls>
 		);
 
 		if ( ! url ) {
 			return (
-				<View style={ { flex: 1 } } >
+				<View style={ styles.content }>
 					<MediaPlaceholder
-						mediaType={ MEDIA_TYPE_IMAGE }
-						onSelectURL={ this.onSelectMediaUploadOption }
-						icon={ this.getIcon( false ) }
+						allowedTypes={ [ MEDIA_TYPE_IMAGE ] }
+						onSelect={ this.onSelectMediaUploadOption }
+						icon={ this.getPlaceholderIcon() }
 						onFocus={ this.props.onFocus }
 					/>
 				</View>
 			);
 		}
 
-		const imageContainerHeight = Dimensions.get( 'window' ).width / IMAGE_ASPECT_RATIO;
+		const alignToFlex = {
+			left: 'flex-start',
+			center: 'center',
+			right: 'flex-end',
+			full: 'center',
+			wide: 'center',
+		};
+
 		const getImageComponent = ( openMediaOptions, getMediaOptions ) => (
-			<TouchableWithoutFeedback
-				accessible={ ! isSelected }
-				onPress={ this.onImagePressed }
-				onLongPress={ openMediaOptions }
-				disabled={ ! isSelected }
-			>
-				<View style={ { flex: 1 } }>
-					{ getInspectorControls() }
-					{ getMediaOptions() }
-					{ ( ! this.state.isCaptionSelected ) &&
-						getToolbarEditButton( openMediaOptions )
-					}
-					<InspectorControls>
-						<ToolbarButton
-							title={ __( 'Image Settings' ) }
-							icon="admin-generic"
-							onClick={ onImageSettingsButtonPressed }
-						/>
-					</InspectorControls>
-					<MediaUploadProgress
-						height={ height }
-						width={ width }
-						coverUrl={ url }
-						mediaId={ id }
-						onUpdateMediaProgress={ this.updateMediaProgress }
-						onFinishMediaUploadWithSuccess={ this.finishMediaUploadWithSuccess }
-						onFinishMediaUploadWithFailure={ this.finishMediaUploadWithFailure }
-						onMediaUploadStateReset={ this.mediaUploadStateReset }
-						renderContent={ ( { isUploadInProgress, isUploadFailed, finalWidth, finalHeight, imageWidthWithinContainer, retryMessage } ) => {
-							const opacity = isUploadInProgress ? 0.3 : 1;
-							const icon = this.getIcon( isUploadFailed );
-
-							const iconContainer = (
-								<View style={ styles.modalIcon }>
-									{ icon }
-								</View>
-							);
-
-							return (
-								<View style={ { flex: 1 } } >
-									{ ! imageWidthWithinContainer &&
-										<View style={ [ styles.imageContainer, { height: imageContainerHeight } ] } >
-											{ this.getIcon( false ) }
-										</View> }
-									<ImageBackground
-										accessible={ true }
-										disabled={ ! isSelected }
-										accessibilityLabel={ alt }
-										accessibilityHint={ __( 'Double tap and hold to edit' ) }
-										accessibilityRole={ 'imagebutton' }
-										style={ { width: finalWidth, height: finalHeight, opacity } }
-										resizeMethod="scale"
-										source={ { uri: url } }
-										key={ url }
-									>
-										{ isUploadFailed &&
-											<View style={ [ styles.imageContainer, { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)' } ] } >
-												{ iconContainer }
-												<Text style={ styles.uploadFailedText }>{ retryMessage }</Text>
-											</View>
-										}
-									</ImageBackground>
-								</View>
-							);
-						} }
-					/>
-					{ ( ! RichText.isEmpty( caption ) > 0 || isSelected ) && (
-						<View style={ { padding: 12, flex: 1 } }
-							accessible={ true }
-							accessibilityLabel={
-								isEmpty( caption ) ?
-									/* translators: accessibility text. Empty image caption. */
-									__( 'Image caption. Empty' ) :
-									sprintf(
-										/* translators: accessibility text. %s: image caption. */
-										__( 'Image caption. %s' ),
-										caption
-									)
+			<>
+				<TouchableWithoutFeedback
+					accessible={ ! isSelected }
+					onPress={ this.onImagePressed }
+					onLongPress={ openMediaOptions }
+					disabled={ ! isSelected }
+				>
+					<View style={ styles.content }>
+						{ getInspectorControls() }
+						{ getMediaOptions() }
+						{ ! this.state.isCaptionSelected &&
+							getToolbarEditButton( openMediaOptions ) }
+						<MediaUploadProgress
+							coverUrl={ url }
+							mediaId={ id }
+							onUpdateMediaProgress={ this.updateMediaProgress }
+							onFinishMediaUploadWithSuccess={
+								this.finishMediaUploadWithSuccess
 							}
-							accessibilityRole={ 'button' }
-						>
-							<RichText
-								setRef={ ( ref ) => {
-									this._caption = ref;
-								} }
-								rootTagsToEliminate={ [ 'p' ] }
-								placeholder={ __( 'Write caption…' ) }
-								value={ caption }
-								onChange={ ( newCaption ) => setAttributes( { caption: newCaption } ) }
-								unstableOnFocus={ this.onFocusCaption }
-								onBlur={ this.props.onBlur } // always assign onBlur as props
-								isSelected={ this.state.isCaptionSelected }
-								__unstableMobileNoFocusOnMount
-								fontSize={ 14 }
-								underlineColorAndroid="transparent"
-								textAlign={ 'center' }
-							/>
-						</View>
-					) }
-				</View>
-			</TouchableWithoutFeedback>
+							onFinishMediaUploadWithFailure={
+								this.finishMediaUploadWithFailure
+							}
+							onMediaUploadStateReset={
+								this.mediaUploadStateReset
+							}
+							renderContent={ ( {
+								isUploadInProgress,
+								isUploadFailed,
+								retryMessage,
+							} ) => {
+								return (
+									<Image
+										align={ align && alignToFlex[ align ] }
+										alt={ alt }
+										isSelected={
+											isSelected && ! isCaptionSelected
+										}
+										isUploadFailed={ isUploadFailed }
+										isUploadInProgress={
+											isUploadInProgress
+										}
+										onSelectMediaUploadOption={
+											this.onSelectMediaUploadOption
+										}
+										openMediaOptions={ openMediaOptions }
+										retryMessage={ retryMessage }
+										url={ url }
+										shapeStyle={ styles[ className ] }
+										width={ this.getWidth() }
+									/>
+								);
+							} }
+						/>
+					</View>
+				</TouchableWithoutFeedback>
+				<BlockCaption
+					clientId={ this.props.clientId }
+					isSelected={ this.state.isCaptionSelected }
+					accessible
+					accessibilityLabelCreator={ this.accessibilityLabelCreator }
+					onFocus={ this.onFocusCaption }
+					onBlur={ this.props.onBlur } // always assign onBlur as props
+					insertBlocksAfter={ this.props.insertBlocksAfter }
+				/>
+			</>
 		);
 
 		return (
-			<MediaUpload mediaType={ MEDIA_TYPE_IMAGE }
-				onSelectURL={ this.onSelectMediaUploadOption }
+			<MediaUpload
+				allowedTypes={ [ MEDIA_TYPE_IMAGE ] }
+				isReplacingMedia={ true }
+				onSelect={ this.onSelectMediaUploadOption }
 				render={ ( { open, getMediaOptions } ) => {
 					return getImageComponent( open, getMediaOptions );
 				} }
@@ -386,4 +532,29 @@ class ImageEdit extends React.Component {
 	}
 }
 
-export default ImageEdit;
+export default compose( [
+	withSelect( ( select, props ) => {
+		const { getMedia } = select( 'core' );
+		const { getSettings } = select( 'core/block-editor' );
+		const {
+			attributes: { id, url },
+			isSelected,
+		} = props;
+		const { imageSizes } = getSettings();
+		const isNotFileUrl = id && getProtocol( url ) !== 'file:';
+
+		const shouldGetMedia =
+			( isSelected && isNotFileUrl ) ||
+			// Edge case to update the image after uploading if the block gets unselected
+			// Check if it's the original image and not the resized one with queryparams
+			( ! isSelected &&
+				isNotFileUrl &&
+				url &&
+				! hasQueryArg( url, 'w' ) );
+		return {
+			image: shouldGetMedia ? getMedia( id ) : null,
+			imageSizes,
+		};
+	} ),
+	withPreferredColorScheme,
+] )( ImageEdit );

@@ -18,14 +18,14 @@ import useSelect from '../use-select';
  *
  * @example
  * ```js
+ * import { withSelect } from '@wordpress/data';
+ *
  * function PriceDisplay( { price, currency } ) {
  * 	return new Intl.NumberFormat( 'en-US', {
  * 		style: 'currency',
  * 		currency,
  * 	} ).format( price );
  * }
- *
- * const { withSelect } = wp.data;
  *
  * const HammerPriceDisplay = withSelect( ( select, ownProps ) => {
  * 	const { getPrice } = select( 'my-shop' );
@@ -45,22 +45,18 @@ import useSelect from '../use-select';
  * component and update automatically if the price of a hammer ever changes in
  * the store.
  *
- * @return {Component} Enhanced component with merged state data props.
+ * @return {WPComponent} Enhanced component with merged state data props.
  */
-const withSelect = ( mapSelectToProps ) => createHigherOrderComponent(
-	( WrappedComponent ) => pure(
-		( ownProps ) => {
-			const mapSelect =
-				( select, registry ) => mapSelectToProps(
-					select,
-					ownProps,
-					registry
-				);
-			const mergeProps = useSelect( mapSelect );
-			return <WrappedComponent { ...ownProps } { ...mergeProps } />;
-		}
-	),
-	'withSelect'
-);
+const withSelect = ( mapSelectToProps ) =>
+	createHigherOrderComponent(
+		( WrappedComponent ) =>
+			pure( ( ownProps ) => {
+				const mapSelect = ( select, registry ) =>
+					mapSelectToProps( select, ownProps, registry );
+				const mergeProps = useSelect( mapSelect );
+				return <WrappedComponent { ...ownProps } { ...mergeProps } />;
+			} ),
+		'withSelect'
+	);
 
 export default withSelect;

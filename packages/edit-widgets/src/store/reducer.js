@@ -1,69 +1,75 @@
 /**
- * External dependencies
- */
-import { keyBy, mapValues, pick } from 'lodash';
-
-/**
  * WordPress dependencies
  */
 import { combineReducers } from '@wordpress/data';
 
 /**
- * Reducer storing some properties of each widget area.
+ * Internal to edit-widgets package.
  *
- * @param {Array}  state  Current state.
- * @param {Object} action Action object.
+ * Stores widgetId -> clientId mapping which is necessary for saving the navigation.
  *
- * @return {Array} Updated state.
+ * @param {Object} state Redux state
+ * @param {Object} action Redux action
+ * @return {Object} Updated state
  */
-export function widgetAreas( state = {}, action = {} ) {
-	switch ( action.type ) {
-		case 'SETUP_WIDGET_AREAS':
-			return mapValues(
-				keyBy( action.widgetAreas, 'id' ),
-				( value ) => pick( value, [
-					'name',
-					'id',
-					'description',
-				] )
-			);
+export function mapping( state, action ) {
+	const { type, ...rest } = action;
+	if ( type === 'SET_WIDGET_TO_CLIENT_ID_MAPPING' ) {
+		return rest.mapping;
+	}
+	if ( type === 'SET_WIDGET_ID_FOR_CLIENT_ID' ) {
+		const newMapping = {
+			...state,
+		};
+		newMapping[ action.widgetId ] = action.clientId;
+		return newMapping;
 	}
 
-	return state;
+	return state || {};
 }
 
 /**
- * Reducer storing the blocks part of each widget area.
+ * Controls the open state of the widget areas.
  *
- * @param {Array}  state  Current state.
- * @param {Object} action Action object.
- *
- * @return {Array} Updated state.
+ * @param {Object} state   Redux state
+ * @param {Object} action  Redux action
+ * @return {Array}         Updated state
  */
-export function widgetAreaBlocks( state = {}, action = {} ) {
-	switch ( action.type ) {
-		case 'SETUP_WIDGET_AREAS':
-			return mapValues(
-				keyBy( action.widgetAreas, 'id' ),
-				( value ) => value.blocks
-			);
-		case 'UPDATE_BLOCKS_IN_WIDGET_AREA': {
-			const blocks = state[ action.widgetAreaId ] || [];
-			// check if change is required
-			if ( blocks === action.blocks ) {
-				return state;
-			}
+export function widgetAreasOpenState( state = {}, action ) {
+	const { type } = action;
+	switch ( type ) {
+		case 'SET_WIDGET_AREAS_OPEN_STATE': {
+			return action.widgetAreasOpenState;
+		}
+		case 'SET_IS_WIDGET_AREA_OPEN': {
+			const { clientId, isOpen } = action;
 			return {
 				...state,
-				[ action.widgetAreaId ]: action.blocks,
+				[ clientId ]: isOpen,
 			};
 		}
+		default: {
+			return state;
+		}
 	}
+}
 
+/**
+ * Reducer tracking whether the inserter is open.
+ *
+ * @param {boolean} state
+ * @param {Object}  action
+ */
+function isInserterOpened( state = false, action ) {
+	switch ( action.type ) {
+		case 'SET_IS_INSERTER_OPENED':
+			return action.value;
+	}
 	return state;
 }
 
 export default combineReducers( {
-	widgetAreas,
-	widgetAreaBlocks,
+	mapping,
+	isInserterOpened,
+	widgetAreasOpenState,
 } );
