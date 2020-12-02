@@ -28,7 +28,7 @@ import {
 	__experimentalLinkControl as LinkControl,
 	__experimentalUseEditorFeature as useEditorFeature,
 } from '@wordpress/block-editor';
-import { rawShortcut, displayShortcut } from '@wordpress/keycodes';
+import { rawShortcut, displayShortcut, ESCAPE } from '@wordpress/keycodes';
 import { link, linkOff } from '@wordpress/icons';
 import { createBlock } from '@wordpress/blocks';
 
@@ -135,11 +135,18 @@ function usePopoverToggle( { isActive, toggleRef } ) {
 		}, 50 );
 	}, [ isActive ] );
 
+	const onClose = ( event ) => {
+		if ( event.keyCode === ESCAPE ) {
+			event.stopPropagation();
+			setIsOpen( false );
+		}
+	};
+
 	const toggle = useCallback( () => setIsOpen( ( state ) => ! state ), [] );
 	const open = useCallback( () => setIsOpen( true ), [] );
 	const close = useCallback( () => setIsOpen( false ), [] );
 
-	return { toggle, open, close, onFocusOutside, isOpen };
+	return { toggle, open, close, onFocusOutside, onClose, isOpen };
 }
 
 function URLPicker( {
@@ -155,6 +162,7 @@ function URLPicker( {
 		toggle: togglePicker,
 		close: closePicker,
 		onFocusOutside,
+		onClose,
 	} = usePopoverToggle( {
 		isActive: isSelected,
 		toggleRef: linkToolbarButtonRef,
@@ -171,7 +179,11 @@ function URLPicker( {
 	};
 
 	const linkControl = ( isURLPickerOpen || urlIsSetandSelected ) && (
-		<Popover position="bottom center" onFocusOutside={ onFocusOutside }>
+		<Popover
+			position="bottom center"
+			onKeyDown={ onClose }
+			onFocusOutside={ onFocusOutside }
+		>
 			<LinkControl
 				className="wp-block-navigation-link__inline-link-input"
 				value={ { url, opensInNewTab } }
