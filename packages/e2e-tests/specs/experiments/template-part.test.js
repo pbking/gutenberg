@@ -134,7 +134,7 @@ describe( 'Template Part', () => {
 			).toBe( 1 );
 
 			// Verify content of the template part is still present.
-			const [ expectedContent ] = await page.$x(
+			const [ expectedContent ] = await canvas().$x(
 				'//p[contains(text(), "Header Template Part 456")]'
 			);
 			expect( expectedContent ).not.toBeUndefined();
