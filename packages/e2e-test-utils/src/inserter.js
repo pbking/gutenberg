@@ -2,6 +2,7 @@
  * Internal dependencies
  */
 import { pressKeyWithModifier } from './press-key-with-modifier';
+import { canvas } from './canvas';
 
 // This selector is written to support the current and old inserter markup
 // because the performance tests need to be able to run across versions.
@@ -55,11 +56,9 @@ export async function toggleGlobalBlockInserter() {
 
 /**
  * Retrieves the document container by css class and checks to make sure the document's active element is within it
- *
- * @param {Object} frame
  */
-async function waitForInserterCloseAndContentFocus( frame = page ) {
-	await frame.waitForFunction( () =>
+async function waitForInserterCloseAndContentFocus() {
+	await canvas().waitForFunction( () =>
 		document.body
 			.querySelector( '.block-editor-block-list__layout' )
 			.contains( document.activeElement )
@@ -128,16 +127,15 @@ export async function searchForReusableBlock( searchTerm ) {
  * result that appears. It then waits briefly for the block list to update.
  *
  * @param {string} searchTerm The text to search the inserter for.
- * @param {Object} frame
  */
-export async function insertBlock( searchTerm, frame ) {
+export async function insertBlock( searchTerm ) {
 	await searchForBlock( searchTerm );
 	const insertButton = (
 		await page.$x( `//button//span[contains(text(), '${ searchTerm }')]` )
 	 )[ 0 ];
 	await insertButton.click();
 	// We should wait until the inserter closes and the focus moves to the content.
-	await waitForInserterCloseAndContentFocus( frame );
+	await waitForInserterCloseAndContentFocus();
 }
 
 /**

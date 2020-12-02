@@ -218,7 +218,7 @@ describe( 'Multi-entity editor states', () => {
 
 		it( 'should only dirty the parent entity when editing the parent', async () => {
 			// Clear selection so that the block is not added to the template part.
-			await insertBlock( 'Paragraph', canvas() );
+			await insertBlock( 'Paragraph' );
 
 			// Add changes to the main parent entity.
 			await page.keyboard.type( 'Test.' );

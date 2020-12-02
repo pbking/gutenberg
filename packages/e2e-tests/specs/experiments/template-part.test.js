@@ -51,7 +51,7 @@ describe( 'Template Part', () => {
 			await navigationPanel.clickItemByText( 'header' );
 
 			// Edit it.
-			await insertBlock( 'Paragraph', canvas() );
+			await insertBlock( 'Paragraph' );
 			await page.keyboard.type( content );
 
 			// Save it.

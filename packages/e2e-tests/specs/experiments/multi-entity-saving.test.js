@@ -216,7 +216,7 @@ describe( 'Multi-entity save flow', () => {
 			await firstBlock.click();
 
 			// Insert something to dirty the editor.
-			await insertBlock( 'Paragraph', canvas() );
+			await insertBlock( 'Paragraph' );
 
 			const enabledButton = await page.waitForSelector(
 				activeSaveSiteSelector
