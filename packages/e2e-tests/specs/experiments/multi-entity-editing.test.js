@@ -164,9 +164,6 @@ describe( 'Multi-entity editor states', () => {
 
 		// Switch back and make sure it is still clean.
 		await clickTemplateItem( 'Templates', 'Front Page' );
-		await page.waitForSelector(
-			'.edit-site-visual-editor[data-loaded="true"]'
-		);
 		await canvas().waitForSelector( '.wp-block' );
 		expect( await isEntityDirty( 'header' ) ).toBe( false );
 		expect( await isEntityDirty( 'front-page' ) ).toBe( false );
@@ -201,7 +198,7 @@ describe( 'Multi-entity editor states', () => {
 			await visitSiteEditor();
 
 			// Wait for site editor to load.
-			await page.waitForSelector(
+			await canvas().waitForSelector(
 				'.wp-block-template-part .block-editor-block-list__layout'
 			);
 

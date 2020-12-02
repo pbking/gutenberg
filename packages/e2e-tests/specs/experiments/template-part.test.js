@@ -40,9 +40,7 @@ describe( 'Template Part', () => {
 					page: 'gutenberg-edit-site',
 				} ).slice( 1 )
 			);
-			await page.waitForSelector(
-				'.edit-site-visual-editor[data-loaded="true"]'
-			);
+			await page.waitForSelector( '.edit-site-visual-editor' );
 		} );
 
 		async function updateHeader( content ) {
@@ -108,7 +106,7 @@ describe( 'Template Part', () => {
 		it( 'Should detach blocks from template part', async () => {
 			await updateHeader( 'Header Template Part 456' );
 
-			const initialTemplateParts = await page.$$(
+			const initialTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 
@@ -142,7 +140,7 @@ describe( 'Template Part', () => {
 		} );
 
 		it( 'Should convert selected block to template part', async () => {
-			await page.waitForSelector( '.wp-block-template-part' );
+			await canvas().waitForSelector( '.wp-block-template-part' );
 			const initialTemplateParts = await page.$$(
 				'.wp-block-template-part'
 			);
@@ -174,7 +172,7 @@ describe( 'Template Part', () => {
 		} );
 
 		it( 'Should convert multiple selected blocks to template part', async () => {
-			await page.waitForSelector( '.wp-block-template-part' );
+			await canvas().waitForSelector( '.wp-block-template-part' );
 			const initialTemplateParts = await page.$$(
 				'.wp-block-template-part'
 			);
