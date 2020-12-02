@@ -7,29 +7,18 @@ import { useResizeObserver } from '@wordpress/compose';
 
 const className = 'editor-styles-wrapper';
 
-function IframeContent( { doc, head, children } ) {
+/**
+ * Clones stylesheets targetting the editor canvas to the given document. A
+ * stylesheet is considered targetting the editor a canvas if it contains the
+ * `editor-styles-wrapper` or `wp-block` class selectors.
+ *
+ * Ideally, this hook should be removed in the future and styles should be added
+ * explicitly as editor styles.
+ *
+ * @param {Document} doc The document to append cloned stylesheets to.
+ */
+function useStyleSheetsCompat( doc ) {
 	useEffect( () => {
-		const { defaultView } = doc;
-		const { frameElement } = defaultView;
-
-		doc.body.className = className;
-		// Necessary for the resize listener to work correctly.
-		doc.body.style.position = 'absolute';
-		doc.body.style.right = '0';
-		doc.body.style.left = '0';
-		// Body style must be overridable by themes.
-		doc.head.innerHTML =
-			'<style>body{margin:0}</style>' +
-			'<style>.wp-block[data-align="full"],.wp-block.alignfull{max-width:100vw!important;width:100vw!important;}</style>' +
-			head;
-		doc.dir = document.dir;
-
-		Array.from( document.body.classList ).forEach( ( name ) => {
-			if ( name.startsWith( 'admin-color-' ) ) {
-				doc.body.classList.add( name );
-			}
-		} );
-
 		// Search the document for stylesheets targetting the editor canvas.
 		Array.from( document.styleSheets ).forEach( ( styleSheet ) => {
 			try {
@@ -57,6 +46,23 @@ function IframeContent( { doc, head, children } ) {
 				doc.head.appendChild( ownerNode.cloneNode( true ) );
 			}
 		} );
+	}, [] );
+}
+
+/**
+ * Bubbles some event types (keydown, keypress and dragover) to parent document
+ * document to ensure that the keyboard shortcuts and drag and drop work.
+ *
+ * Ideally, we should remove event bubbling in the future. Keyboard shortcuts
+ * should be context dependent, e.g. actions on blocks like Cmd+A should not
+ * work globally outside the block editor.
+ *
+ * @param {Document} doc Document to attach listeners to.
+ */
+function useBubbleEvents( doc ) {
+	useEffect( () => {
+		const { defaultView } = doc;
+		const { frameElement } = defaultView;
 
 		function bubbleEvent( event ) {
 			const prototype = Object.getPrototypeOf( event );
@@ -95,7 +101,72 @@ function IframeContent( { doc, head, children } ) {
 			} );
 		};
 	}, [] );
+}
 
+/**
+ * Sets the document direction.
+ *
+ * Sets the `editor-styles-wrapper` class name on the body.
+ *
+ * Copies the `admin-color-*` class name to the body so that the admin color
+ * scheme applies to components in the iframe.
+ *
+ * @param {Document} doc Document to add class name to.
+ */
+function useBodyClassName( doc ) {
+	useEffect( () => {
+		doc.dir = document.dir;
+		doc.body.className = className;
+
+		Array.from( document.body.classList ).forEach( ( name ) => {
+			if ( name.startsWith( 'admin-color-' ) ) {
+				doc.body.classList.add( name );
+			}
+		} );
+	}, [] );
+}
+
+/**
+ * Positions the body element so that the resize listener works correctly. We're
+ * using an absolute position here because the resize listener doesn't seem to
+ * report shrinking when the position is relative, causing the iframe not to
+ * shrink when content is removed.
+ *
+ * @see https://github.com/FezVrasta/react-resize-aware#usage
+ *
+ * @param {Document} doc Document to set styles to.
+ */
+function useResizeListenerCompat( doc ) {
+	useEffect( () => {
+		// Necessary for the resize listener to work correctly.
+		doc.body.style.position = 'absolute';
+		doc.body.style.right = '0';
+		doc.body.style.left = '0';
+	}, [] );
+}
+
+/**
+ * Sets the document head and default styles.
+ *
+ * @param {Document} doc  Document to set the head for.
+ * @param {string}   head HTML to set as the head.
+ */
+function useHead( doc, head ) {
+	useEffect( () => {
+		doc.head.innerHTML =
+			// Body margin must be overridable by themes.
+			'<style>body{margin:0}</style>' +
+			'<style>.wp-block[data-align="full"],.wp-block.alignfull{max-width:100vw!important;width:100vw!important;}</style>' +
+			head;
+	}, [] );
+}
+
+function IframeContent( { doc, head, children } ) {
+	useHead( doc, head );
+	useStyleSheetsCompat( doc );
+	useBubbleEvents( doc );
+	useBodyClassName( doc );
+	useResizeListenerCompat( doc );
 	return createPortal( children, doc.body );
 }
 

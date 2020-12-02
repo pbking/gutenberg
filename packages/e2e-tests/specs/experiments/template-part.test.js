@@ -125,7 +125,7 @@ describe( 'Template Part', () => {
 			await triggerEllipsisMenuItem( 'Detach blocks from template part' );
 
 			// Verify there is one less template part on the page.
-			const finalTemplateParts = await page.$$(
+			const finalTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 			expect(
@@ -141,7 +141,7 @@ describe( 'Template Part', () => {
 
 		it( 'Should convert selected block to template part', async () => {
 			await canvas().waitForSelector( '.wp-block-template-part' );
-			const initialTemplateParts = await page.$$(
+			const initialTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 
@@ -163,7 +163,7 @@ describe( 'Template Part', () => {
 			);
 
 			// Verify there is 1 more template part on the page than previously.
-			const finalTemplateParts = await page.$$(
+			const finalTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 			expect(
@@ -173,7 +173,7 @@ describe( 'Template Part', () => {
 
 		it( 'Should convert multiple selected blocks to template part', async () => {
 			await canvas().waitForSelector( '.wp-block-template-part' );
-			const initialTemplateParts = await page.$$(
+			const initialTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 
@@ -207,7 +207,7 @@ describe( 'Template Part', () => {
 			);
 
 			// Verify there is 1 more template part on the page than previously.
-			const finalTemplateParts = await page.$$(
+			const finalTemplateParts = await canvas().$$(
 				'.wp-block-template-part'
 			);
 			expect(
