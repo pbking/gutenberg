@@ -90,7 +90,7 @@ describe( 'Template Part', () => {
 		}
 
 		async function assertParagraphInTemplatePart( content ) {
-			const paragraphInTemplatePart = await page.waitForXPath(
+			const paragraphInTemplatePart = await canvas().waitForXPath(
 				`//*[@data-type="core/template-part"][//p[text()="${ content }"]]`
 			);
 			expect( paragraphInTemplatePart ).not.toBeNull();
