@@ -15,7 +15,7 @@ import {
 	__unstableUseBlockSelectionClearer as useBlockSelectionClearer,
 	__unstableUseTypingObserver as useTypingObserver,
 	__unstableUseEditorStyles as useEditorStyles,
-	Iframe,
+	__unstableIframe as Iframe,
 } from '@wordpress/block-editor';
 
 /**

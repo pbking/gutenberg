@@ -18,28 +18,45 @@ function IframeContent( { doc, head, children } ) {
 		doc.body.style.right = '0';
 		doc.body.style.left = '0';
 		// Body style must be overridable by themes.
-		doc.head.innerHTML = '<style>body{margin:0}</style>' + head;
+		doc.head.innerHTML =
+			'<style>body{margin:0}</style>' +
+			'<style>.wp-block[data-align="full"],.wp-block.alignfull{max-width:100vw!important;width:100vw!important;}</style>' +
+			head;
 		doc.dir = document.dir;
 
-		[ ...document.styleSheets ].reduce( ( acc, styleSheet ) => {
+		Array.from( document.body.classList ).forEach( ( name ) => {
+			if ( name.startsWith( 'admin-color-' ) ) {
+				doc.body.classList.add( name );
+			}
+		} );
+
+		// Search the document for stylesheets targetting the editor canvas.
+		Array.from( document.styleSheets ).forEach( ( styleSheet ) => {
 			try {
-				const isMatch = [ ...styleSheet.cssRules ].find(
-					( { selectorText } ) => {
-						return selectorText.indexOf( `.${ className }` ) !== -1;
-					}
-				);
+				// May fail for external styles.
+				// eslint-disable-next-line no-unused-expressions
+				styleSheet.cssRules;
+			} catch ( e ) {
+				return;
+			}
 
-				if ( isMatch ) {
-					const node = styleSheet.ownerNode;
+			const { ownerNode, cssRules } = styleSheet;
 
-					if ( ! doc.getElementById( node.id ) ) {
-						doc.head.appendChild( node.cloneNode( true ) );
-					}
-				}
-			} catch ( e ) {}
+			if ( ! cssRules ) {
+				return;
+			}
 
-			return acc;
-		}, [] );
+			const isMatch = Array.from( cssRules ).find(
+				( { selectorText } ) =>
+					selectorText &&
+					( selectorText.includes( `.${ className }` ) ||
+						selectorText.includes( `.wp-block` ) )
+			);
+
+			if ( isMatch && ! doc.getElementById( ownerNode.id ) ) {
+				doc.head.appendChild( ownerNode.cloneNode( true ) );
+			}
+		} );
 
 		function bubbleEvent( event ) {
 			const prototype = Object.getPrototypeOf( event );
