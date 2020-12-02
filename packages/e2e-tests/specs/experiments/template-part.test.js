@@ -116,13 +116,14 @@ describe( 'Template Part', () => {
 				( block ) => block.name === 'core/template-part'
 			);
 			await selectBlockByClientId( headerBlock.clientId );
+
+			// Detach blocks from template part using ellipsis menu.
+			await triggerEllipsisMenuItem( 'Detach blocks from template part' );
+
 			// TODO: Remove when toolbar supports text fields
 			expect( console ).toHaveWarnedWith(
 				'Using custom components as toolbar controls is deprecated. Please use ToolbarItem or ToolbarButton components instead. See: https://developer.wordpress.org/block-editor/components/toolbar-button/#inside-blockcontrols'
 			);
-
-			// Detach blocks from template part using ellipsis menu.
-			await triggerEllipsisMenuItem( 'Detach blocks from template part' );
 
 			// Verify there is one less template part on the page.
 			const finalTemplateParts = await canvas().$$(
