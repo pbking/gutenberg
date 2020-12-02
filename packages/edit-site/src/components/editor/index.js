@@ -268,14 +268,8 @@ function Editor() {
 														/>
 													}
 													content={
-														<div
-															style={ {
-																position:
-																	'relative',
-															} }
-														>
+														<>
 															<Notices />
-															<Popover.Slot name="block-toolbar" />
 															{ template && (
 																<BlockEditor
 																	setIsInserterOpen={
@@ -284,7 +278,7 @@ function Editor() {
 																/>
 															) }
 															<KeyboardShortcuts />
-														</div>
+														</>
 													}
 													actions={
 														<>

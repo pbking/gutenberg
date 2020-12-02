@@ -11,6 +11,7 @@ import {
 	getAllBlocks,
 	selectBlockByClientId,
 	clickBlockToolbarButton,
+	canvas,
 } from '@wordpress/e2e-test-utils';
 import { addQueryArgs } from '@wordpress/url';
 
@@ -51,16 +52,8 @@ describe( 'Template Part', () => {
 			await navigationPanel.navigate( 'Template Parts' );
 			await navigationPanel.clickItemByText( 'header' );
 
-			await page.waitForSelector(
-				'.edit-site-visual-editor[data-loaded="true"]'
-			);
-
-			const frame = await page
-				.frames()
-				.find( ( f ) => f.name() === 'editor-canvas' );
-
 			// Edit it.
-			await insertBlock( 'Paragraph', frame );
+			await insertBlock( 'Paragraph', canvas() );
 			await page.keyboard.type( content );
 
 			// Save it.

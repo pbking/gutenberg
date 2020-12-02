@@ -17,6 +17,7 @@ import {
 	__unstableUseEditorStyles as useEditorStyles,
 	__unstableIframe as Iframe,
 } from '@wordpress/block-editor';
+import { Popover } from '@wordpress/components';
 
 /**
  * Internal dependencies
@@ -94,6 +95,7 @@ export default function BlockEditor( { setIsInserterOpen } ) {
 				<BlockInspector />
 			</SidebarInspectorFill>
 			<div className="edit-site-visual-editor">
+				<Popover.Slot name="block-toolbar" />
 				<Iframe
 					style={ resizedCanvasStyles }
 					head={ window.__editorStyles.html }

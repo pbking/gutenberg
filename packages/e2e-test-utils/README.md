@@ -40,6 +40,10 @@ _Returns_
 
 -   `Promise<boolean>`: Boolean which represents the state of prepublish checks.
 
+<a name="canvas" href="#canvas">#</a> **canvas**
+
+Gets the editor canvas frame.
+
 <a name="clearLocalStorage" href="#clearLocalStorage">#</a> **clearLocalStorage**
 
 Clears the local storage.
